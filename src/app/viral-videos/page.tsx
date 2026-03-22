@@ -87,22 +87,38 @@ export default function ViralVideosPage() {
     loadData();
   }, [loadData]);
 
-  async function handleTrackAuthor(v: ViralVideo) {
+  async function toggleTrackAuthor(v: ViralVideo) {
     if (!current || !v.author_id) return;
     const key = `${v.platform}:${v.author_id}`;
-    if (trackedAuthors.has(key)) return;
 
     setTrackingAuthor(v.id);
-    await supabase.from("vb_tracked_accounts").insert({
-      project_id: current.id,
-      platform: v.platform,
-      account_id: v.author_id,
-      account_name: v.author_name || v.author_id,
-      account_url: v.video_url ? v.video_url.split("/video/")[0] : null,
-      source: "manual",
-      is_active: true,
-    });
-    setTrackedAuthors((prev) => new Set([...prev, key]));
+
+    if (trackedAuthors.has(key)) {
+      // 取消追蹤
+      await supabase
+        .from("vb_tracked_accounts")
+        .delete()
+        .eq("project_id", current.id)
+        .eq("platform", v.platform)
+        .eq("account_id", v.author_id);
+      setTrackedAuthors((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    } else {
+      // 加入追蹤
+      await supabase.from("vb_tracked_accounts").insert({
+        project_id: current.id,
+        platform: v.platform,
+        account_id: v.author_id,
+        account_name: v.author_name || v.author_id,
+        account_url: v.video_url ? v.video_url.split("/video/")[0] : null,
+        source: "manual",
+        is_active: true,
+      });
+      setTrackedAuthors((prev) => new Set([...prev, key]));
+    }
     setTrackingAuthor(null);
   }
 
@@ -407,8 +423,37 @@ export default function ViralVideosPage() {
                         {v.title || "（無標題）"}
                       </button>
                     </td>
-                    <td className="p-3 text-gray-600">
-                      {v.author_name || "-"}
+                    <td className="p-3">
+                      {v.author_id ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTrackAuthor(v);
+                          }}
+                          disabled={trackingAuthor === v.id}
+                          className={`inline-flex items-center gap-1 text-sm transition-colors ${
+                            trackedAuthors.has(`${v.platform}:${v.author_id}`)
+                              ? "text-success hover:text-danger"
+                              : "text-gray-600 hover:text-primary"
+                          }`}
+                          title={
+                            trackedAuthors.has(`${v.platform}:${v.author_id}`)
+                              ? "點擊取消追蹤"
+                              : "點擊追蹤此帳號"
+                          }
+                        >
+                          {trackingAuthor === v.id ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : trackedAuthors.has(`${v.platform}:${v.author_id}`) ? (
+                            <UserCheck size={13} />
+                          ) : (
+                            <UserPlus size={13} className="opacity-0 group-hover:opacity-100" />
+                          )}
+                          {v.author_name || v.author_id}
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="p-3 text-right font-medium">
                       {formatNumber(v.likes)}
@@ -471,24 +516,26 @@ export default function ViralVideosPage() {
                                 </a>
                               )}
                               {v.author_id && (
-                                trackedAuthors.has(`${v.platform}:${v.author_id}`) ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-success">
-                                    <UserCheck size={14} /> 已追蹤
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => handleTrackAuthor(v)}
-                                    disabled={trackingAuthor === v.id}
-                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-primary text-white rounded hover:bg-primary-hover transition-colors disabled:opacity-50"
-                                  >
-                                    {trackingAuthor === v.id ? (
-                                      <Loader2 size={12} className="animate-spin" />
-                                    ) : (
-                                      <UserPlus size={12} />
-                                    )}
-                                    追蹤 {v.author_name || "此帳號"}
-                                  </button>
-                                )
+                                <button
+                                  onClick={() => toggleTrackAuthor(v)}
+                                  disabled={trackingAuthor === v.id}
+                                  className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+                                    trackedAuthors.has(`${v.platform}:${v.author_id}`)
+                                      ? "bg-red-50 text-danger hover:bg-red-100"
+                                      : "bg-primary text-white hover:bg-primary-hover"
+                                  }`}
+                                >
+                                  {trackingAuthor === v.id ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : trackedAuthors.has(`${v.platform}:${v.author_id}`) ? (
+                                    <UserCheck size={12} />
+                                  ) : (
+                                    <UserPlus size={12} />
+                                  )}
+                                  {trackedAuthors.has(`${v.platform}:${v.author_id}`)
+                                    ? "取消追蹤"
+                                    : `追蹤 ${v.author_name || "此帳號"}`}
+                                </button>
                               )}
                             </div>
                           </div>
