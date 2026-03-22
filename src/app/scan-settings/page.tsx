@@ -95,6 +95,29 @@ export default function ScanSettingsPage() {
         is_active: true,
       }));
       await supabase.from("vb_audience_tracks").insert(trackRows);
+
+      // 同時把所有賽道關鍵字直接寫進關鍵字清單
+      const allKeywords = suggestion.tracks.flatMap((t) => t.keywords);
+      const uniqueKeywords = [...new Set(allKeywords)];
+
+      // 排除已存在的關鍵字
+      const { data: existing } = await supabase
+        .from("vb_keywords")
+        .select("keyword")
+        .eq("project_id", current.id);
+      const existingSet = new Set((existing || []).map((k: any) => k.keyword));
+
+      const newKeywords = uniqueKeywords.filter((kw) => !existingSet.has(kw));
+      if (newKeywords.length > 0) {
+        const kwRows = newKeywords.map((kw) => ({
+          project_id: current.id,
+          keyword: kw,
+          platforms: current.platforms,
+          source: "ai_audience",
+          is_active: true,
+        }));
+        await supabase.from("vb_keywords").insert(kwRows);
+      }
     }
 
     setAddedAiGroups((prev) => new Set([...prev, key]));
@@ -796,7 +819,7 @@ export default function ScanSettingsPage() {
                             onClick={() => handleAddAiGroup(sg)}
                             className="flex items-center gap-1 text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
                           >
-                            <Plus size={14} /> 全部加入
+                            <Plus size={14} /> 加入人群 + 關鍵字
                           </button>
                         )}
                       </div>
