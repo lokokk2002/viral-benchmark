@@ -21,7 +21,7 @@ import {
 import { useState, useRef, useEffect } from "react";
 
 const NAV_ITEMS = [
-  { href: "/keywords", label: "AI 關鍵字建議", icon: Sparkles },
+  { href: "/keywords", label: "AI 智能建議", icon: Sparkles },
   { href: "/scan-settings", label: "掃描設定", icon: Settings },
   { href: "/viral-videos", label: "爆款對標表", icon: TrendingUp },
   { href: "/shoot-queue", label: "本週拍攝表", icon: Film },

@@ -21,6 +21,9 @@ import {
   Users,
   Route,
   ChevronRight,
+  Sparkles,
+  Loader2,
+  Check,
 } from "lucide-react";
 
 export default function ScanSettingsPage() {
@@ -39,6 +42,64 @@ export default function ScanSettingsPage() {
   const [newTrackName, setNewTrackName] = useState("");
   const [newTrackIcon, setNewTrackIcon] = useState("");
   const [newTrackKeywords, setNewTrackKeywords] = useState("");
+
+  // AI 人群賽道建議
+  interface AiTrack { name: string; icon: string; keywords: string[] }
+  interface AiSuggestion { group_name: string; group_icon: string; tracks: AiTrack[] }
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [addedAiGroups, setAddedAiGroups] = useState<Set<string>>(new Set());
+
+  async function handleAiSuggestAudience() {
+    if (!current) return;
+    setLoadingAi(true);
+    setAiSuggestions([]);
+    try {
+      const res = await fetch("/api/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: current.id, type: "audience" }),
+      });
+      const data = await res.json();
+      setAiSuggestions(data.audience ?? []);
+    } catch {
+      setAiSuggestions([]);
+    }
+    setLoadingAi(false);
+  }
+
+  async function handleAddAiGroup(suggestion: AiSuggestion) {
+    if (!current) return;
+    const key = suggestion.group_name;
+    if (addedAiGroups.has(key)) return;
+
+    // 建立人群
+    const { data: group } = await supabase
+      .from("vb_audience_groups")
+      .insert({
+        project_id: current.id,
+        name: suggestion.group_name,
+        icon: suggestion.group_icon,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    if (group) {
+      // 建立所有賽道
+      const trackRows = suggestion.tracks.map((t) => ({
+        audience_group_id: group.id,
+        name: t.name,
+        icon: t.icon,
+        suggested_keywords: t.keywords,
+        is_active: true,
+      }));
+      await supabase.from("vb_audience_tracks").insert(trackRows);
+    }
+
+    setAddedAiGroups((prev) => new Set([...prev, key]));
+    loadData();
+  }
 
   // 新增表單
   const [newKeyword, setNewKeyword] = useState("");
@@ -499,9 +560,23 @@ export default function ScanSettingsPage() {
           <h2 className="font-semibold flex items-center gap-2">
             <Users size={18} /> 人群與賽道管理
           </h2>
-          <span className="text-xs text-gray-400">
-            {audienceGroups.length} 個人群
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">
+              {audienceGroups.length} 個人群
+            </span>
+            <button
+              onClick={handleAiSuggestAudience}
+              disabled={loadingAi}
+              className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg text-xs hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              {loadingAi ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              AI 建議
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 divide-x divide-border min-h-[320px]">
@@ -683,6 +758,77 @@ export default function ScanSettingsPage() {
             )}
           </div>
         </div>
+
+        {/* AI 建議面板 */}
+        {(loadingAi || aiSuggestions.length > 0) && (
+          <div className="border-t border-border">
+            <div className="p-4 border-b border-border">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles size={16} className="text-primary" />
+                AI 建議的人群與賽道
+              </h3>
+            </div>
+            {loadingAi ? (
+              <div className="p-8 flex items-center justify-center gap-2 text-gray-400">
+                <Loader2 size={20} className="animate-spin" />
+                AI 分析爆款數據中...
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {aiSuggestions.map((sg) => {
+                  const isAdded = addedAiGroups.has(sg.group_name);
+                  return (
+                    <div key={sg.group_name} className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{sg.group_icon}</span>
+                          <span className="font-medium text-sm">{sg.group_name}</span>
+                          <span className="text-xs text-gray-400">
+                            {sg.tracks.length} 個賽道
+                          </span>
+                        </div>
+                        {isAdded ? (
+                          <span className="flex items-center gap-1 text-xs text-success">
+                            <Check size={14} /> 已加入
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleAddAiGroup(sg)}
+                            className="flex items-center gap-1 text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+                          >
+                            <Plus size={14} /> 全部加入
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 ml-8">
+                        {sg.tracks.map((t) => (
+                          <div
+                            key={t.name}
+                            className="bg-gray-50 rounded-lg px-3 py-2 text-xs"
+                          >
+                            <span className="font-medium">
+                              {t.icon} {t.name}
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {t.keywords.map((kw) => (
+                                <span
+                                  key={kw}
+                                  className="bg-blue-50 text-primary px-2 py-0.5 rounded"
+                                >
+                                  {kw}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -15,14 +15,29 @@ import {
   Zap,
   Loader2,
   Check,
+  UserPlus,
+  UserCheck,
 } from "lucide-react";
+import { platformIcon, platformLabel, formatNumber } from "@/lib/utils";
+import { Platform } from "@/lib/types";
 
 type SuggestType =
   | "content"
   | "account"
   | "instagram"
   | "trending"
-  | "audience";
+  | "audience"
+  | "discover_accounts";
+
+interface AccountSuggestion {
+  author_id: string;
+  author_name: string;
+  platform: string;
+  video_count: number;
+  total_likes: number;
+  avg_likes: number;
+  sample_title: string;
+}
 
 const DIRECTIONS: {
   type: SuggestType;
@@ -41,6 +56,12 @@ const DIRECTIONS: {
     label: "對標帳號趨勢",
     icon: BarChart3,
     desc: "分析對標帳號的主題趨勢變化",
+  },
+  {
+    type: "discover_accounts",
+    label: "對標帳號推薦",
+    icon: UserPlus,
+    desc: "從爆款中發現高頻優質帳號",
   },
   {
     type: "instagram",
@@ -75,13 +96,60 @@ export default function KeywordsPage() {
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAudiencePanel, setShowAudiencePanel] = useState(false);
 
+  // 帳號推薦
+  const [accountSuggestions, setAccountSuggestions] = useState<AccountSuggestion[]>([]);
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [addedAccounts, setAddedAccounts] = useState<Set<string>>(new Set());
+  const [addingAccount, setAddingAccount] = useState<string | null>(null);
+
+  async function handleAddAccount(acc: AccountSuggestion) {
+    if (!current) return;
+    const key = `${acc.platform}:${acc.author_id}`;
+    if (addedAccounts.has(key)) return;
+
+    setAddingAccount(key);
+    await supabase.from("vb_tracked_accounts").insert({
+      project_id: current.id,
+      platform: acc.platform,
+      account_id: acc.author_id,
+      account_name: acc.author_name,
+      source: "ai_suggested",
+      is_active: true,
+    });
+    setAddedAccounts((prev) => new Set([...prev, key]));
+    setAddingAccount(null);
+  }
+
   async function handleDirection(type: SuggestType) {
     if (!current) return;
 
+    if (type === "discover_accounts") {
+      setShowAccountPanel(true);
+      setShowAudiencePanel(false);
+      setActiveType("discover_accounts");
+      setLoading(true);
+      setSuggestions([]);
+      setAccountSuggestions([]);
+
+      try {
+        const res = await fetch("/api/ai-suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: current.id, type: "accounts" }),
+        });
+        const data = await res.json();
+        setAccountSuggestions(data.accounts ?? []);
+      } catch {
+        setAccountSuggestions([]);
+      }
+      setLoading(false);
+      return;
+    }
+
     if (type === "audience") {
       setShowAudiencePanel(true);
+      setShowAccountPanel(false);
       setActiveType("audience");
-      // 載入人群資料
       const { data: groups } = await supabase
         .from("vb_audience_groups")
         .select("*")
@@ -92,6 +160,7 @@ export default function KeywordsPage() {
     }
 
     setShowAudiencePanel(false);
+    setShowAccountPanel(false);
     setActiveType(type);
     setLoading(true);
     setSuggestions([]);
@@ -222,13 +291,13 @@ export default function KeywordsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">AI 關鍵字建議</h1>
+      <h1 className="text-2xl font-bold mb-1">AI 智能建議</h1>
       <p className="text-gray-500 text-sm mb-6">
-        從 5 個方向獲得關鍵字建議，多選後加入掃描清單
+        從 6 個方向獲得關鍵字和帳號建議，點選加入掃描清單
       </p>
 
       {/* 5 個方向按鈕 */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
         {DIRECTIONS.map((d) => (
           <button
             key={d.type}
@@ -329,8 +398,87 @@ export default function KeywordsPage() {
         </div>
       )}
 
+      {/* 對標帳號推薦面板 */}
+      {showAccountPanel && (
+        <div className="mb-6 border border-border rounded-xl bg-card-bg">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold">對標帳號推薦</h2>
+              {accountSuggestions.length > 0 && (
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {accountSuggestions.length} 個
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-gray-400">
+              從爆款中出現 2 次以上的優質帳號
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="p-8 flex items-center justify-center gap-2 text-gray-400">
+              <Loader2 size={20} className="animate-spin" />
+              分析爆款帳號中...
+            </div>
+          ) : accountSuggestions.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              尚無足夠的爆款數據，請先執行掃描累積資料
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {accountSuggestions.map((acc) => {
+                const key = `${acc.platform}:${acc.author_id}`;
+                const isAdded = addedAccounts.has(key);
+                const isAdding = addingAccount === key;
+
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <span title={acc.platform}>
+                      {platformIcon(acc.platform as Platform)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        {acc.author_name}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {acc.sample_title}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-gray-500 shrink-0">
+                      <p>{acc.video_count} 支爆款</p>
+                      <p>平均 {formatNumber(acc.avg_likes)} 讚</p>
+                    </div>
+                    {isAdded ? (
+                      <span className="flex items-center gap-1 text-xs text-success shrink-0">
+                        <UserCheck size={16} /> 已加入
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleAddAccount(acc)}
+                        disabled={isAdding}
+                        className="flex items-center gap-1 text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        {isAdding ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <UserPlus size={14} />
+                        )}
+                        追蹤
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 建議結果列表 */}
-      {(loading || suggestions.length > 0) && (
+      {activeType !== "discover_accounts" && (loading || suggestions.length > 0) && (
         <div className="border border-border rounded-xl bg-card-bg">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">

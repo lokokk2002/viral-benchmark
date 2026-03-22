@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Plus,
   Loader2,
+  UserPlus,
+  UserCheck,
 } from "lucide-react";
 
 export default function ViralVideosPage() {
@@ -30,6 +32,8 @@ export default function ViralVideosPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [trackedAuthors, setTrackedAuthors] = useState<Set<string>>(new Set());
+  const [trackingAuthor, setTrackingAuthor] = useState<string | null>(null);
 
   // 篩選器
   const [filterPlatform, setFilterPlatform] = useState<Platform | "all">(
@@ -64,9 +68,43 @@ export default function ViralVideosPage() {
     setLoading(false);
   }, [current, filterPlatform, filterSource, sortField, sortAsc]);
 
+  // 載入已追蹤帳號（用於判斷按鈕狀態）
+  useEffect(() => {
+    if (!current) return;
+    supabase
+      .from("vb_tracked_accounts")
+      .select("account_id, platform")
+      .eq("project_id", current.id)
+      .then(({ data }) => {
+        const set = new Set(
+          (data || []).map((a: any) => `${a.platform}:${a.account_id}`)
+        );
+        setTrackedAuthors(set);
+      });
+  }, [current]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  async function handleTrackAuthor(v: ViralVideo) {
+    if (!current || !v.author_id) return;
+    const key = `${v.platform}:${v.author_id}`;
+    if (trackedAuthors.has(key)) return;
+
+    setTrackingAuthor(v.id);
+    await supabase.from("vb_tracked_accounts").insert({
+      project_id: current.id,
+      platform: v.platform,
+      account_id: v.author_id,
+      account_name: v.author_name || v.author_id,
+      account_url: v.video_url ? v.video_url.split("/video/")[0] : null,
+      source: "manual",
+      is_active: true,
+    });
+    setTrackedAuthors((prev) => new Set([...prev, key]));
+    setTrackingAuthor(null);
+  }
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -421,16 +459,38 @@ export default function ViralVideosPage() {
                                 ))}
                               </div>
                             )}
-                            {v.video_url && (
-                              <a
-                                href={v.video_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-primary hover:underline mt-1"
-                              >
-                                <ExternalLink size={14} /> 觀看影片
-                              </a>
-                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              {v.video_url && (
+                                <a
+                                  href={v.video_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                                >
+                                  <ExternalLink size={14} /> 觀看影片
+                                </a>
+                              )}
+                              {v.author_id && (
+                                trackedAuthors.has(`${v.platform}:${v.author_id}`) ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-success">
+                                    <UserCheck size={14} /> 已追蹤
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleTrackAuthor(v)}
+                                    disabled={trackingAuthor === v.id}
+                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-primary text-white rounded hover:bg-primary-hover transition-colors disabled:opacity-50"
+                                  >
+                                    {trackingAuthor === v.id ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      <UserPlus size={12} />
+                                    )}
+                                    追蹤 {v.author_name || "此帳號"}
+                                  </button>
+                                )
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
