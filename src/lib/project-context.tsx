@@ -129,6 +129,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     const updated = data as Project;
 
+    // 同步門檻：為新增的平台建立預設門檻
+    const { data: existingThresholds } = await supabase
+      .from("vb_thresholds")
+      .select("platform")
+      .eq("project_id", input.id);
+    const existingPlatforms = new Set(
+      (existingThresholds || []).map((t: any) => t.platform)
+    );
+    const newPlatforms = input.platforms.filter(
+      (p) => !existingPlatforms.has(p)
+    );
+    if (newPlatforms.length > 0) {
+      const thresholdRows = newPlatforms.map((platform) => ({
+        project_id: input.id,
+        platform,
+        min_likes: 10000,
+        min_shares: 0,
+        max_days_old: 30,
+      }));
+      await supabase.from("vb_thresholds").insert(thresholdRows);
+    }
+
     // 重新載入列表並更新當前專案參照
     await load();
     if (current?.id === updated.id) {
