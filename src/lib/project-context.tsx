@@ -97,15 +97,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     const newProject = data as Project;
 
-    // 為新專案建立預設門檻
-    const thresholdRows = input.platforms.map((platform) => ({
-      project_id: newProject.id,
-      platform,
-      min_likes: 10000,
-      min_shares: 0,
-      max_days_old: 30,
-    }));
-    await supabase.from("vb_thresholds").insert(thresholdRows);
+    // 為新專案建立預設門檻（透過 API route）
+    await fetch("/api/sync-thresholds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: newProject.id,
+        platforms: input.platforms,
+      }),
+    }).catch(() => {});
 
     // 重新載入列表並切換到新專案
     await load();
@@ -129,27 +129,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     const updated = data as Project;
 
-    // 同步門檻：為新增的平台建立預設門檻
-    const { data: existingThresholds } = await supabase
-      .from("vb_thresholds")
-      .select("platform")
-      .eq("project_id", input.id);
-    const existingPlatforms = new Set(
-      (existingThresholds || []).map((t: any) => t.platform)
-    );
-    const newPlatforms = input.platforms.filter(
-      (p) => !existingPlatforms.has(p)
-    );
-    if (newPlatforms.length > 0) {
-      const thresholdRows = newPlatforms.map((platform) => ({
+    // 同步門檻：透過 API route（service role）同步新增/移除平台的門檻
+    await fetch("/api/sync-thresholds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         project_id: input.id,
-        platform,
-        min_likes: 10000,
-        min_shares: 0,
-        max_days_old: 30,
-      }));
-      await supabase.from("vb_thresholds").insert(thresholdRows);
-    }
+        platforms: input.platforms,
+      }),
+    }).catch(() => {});
 
     // 重新載入列表並更新當前專案參照
     await load();
