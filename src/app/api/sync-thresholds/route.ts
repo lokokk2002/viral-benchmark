@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       platform,
       min_likes: 10000,
       min_shares: 0,
+      min_comments: 0,
       max_days_old: 30,
     }));
     await supabase.from("vb_thresholds").insert(rows);

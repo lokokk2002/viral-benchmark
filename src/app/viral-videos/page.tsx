@@ -45,16 +45,35 @@ export default function ViralVideosPage() {
   );
   const [sortAsc, setSortAsc] = useState(false);
 
+  // 分頁
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   const loadData = useCallback(async () => {
     if (!current) return;
     setLoading(true);
+
+    // 先取總數
+    let countQuery = supabase
+      .from("vb_viral_videos")
+      .select("*", { count: "exact", head: true })
+      .eq("project_id", current.id);
+    if (filterPlatform !== "all") countQuery = countQuery.eq("platform", filterPlatform);
+    if (filterSource !== "all") countQuery = countQuery.eq("source_type", filterSource);
+    const { count } = await countQuery;
+    setTotalCount(count ?? 0);
+
+    // 取當頁資料
+    const from = (currentPage - 1) * pageSize;
+    const to = from + pageSize - 1;
 
     let query = supabase
       .from("vb_viral_videos")
       .select("*")
       .eq("project_id", current.id)
       .order(sortField, { ascending: sortAsc })
-      .limit(200);
+      .range(from, to);
 
     if (filterPlatform !== "all") {
       query = query.eq("platform", filterPlatform);
@@ -66,7 +85,7 @@ export default function ViralVideosPage() {
     const { data } = await query;
     setVideos((data as ViralVideo[]) ?? []);
     setLoading(false);
-  }, [current, filterPlatform, filterSource, sortField, sortAsc]);
+  }, [current, filterPlatform, filterSource, sortField, sortAsc, currentPage, pageSize]);
 
   // 載入已追蹤帳號（用於判斷按鈕狀態）
   useEffect(() => {
@@ -146,7 +165,10 @@ export default function ViralVideosPage() {
       setSortField(field);
       setSortAsc(false);
     }
+    setCurrentPage(1);
   }
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   async function handleScan() {
     if (!current) return;
@@ -300,12 +322,13 @@ export default function ViralVideosPage() {
       </div>
 
       {/* 篩選器 */}
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 items-center">
         <select
           value={filterPlatform}
-          onChange={(e) =>
-            setFilterPlatform(e.target.value as Platform | "all")
-          }
+          onChange={(e) => {
+            setFilterPlatform(e.target.value as Platform | "all");
+            setCurrentPage(1);
+          }}
           className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
         >
           <option value="all">全部平台</option>
@@ -317,9 +340,10 @@ export default function ViralVideosPage() {
         </select>
         <select
           value={filterSource}
-          onChange={(e) =>
-            setFilterSource(e.target.value as SourceType | "all")
-          }
+          onChange={(e) => {
+            setFilterSource(e.target.value as SourceType | "all");
+            setCurrentPage(1);
+          }}
           className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
         >
           <option value="all">全部來源</option>
@@ -328,6 +352,21 @@ export default function ViralVideosPage() {
           <option value="ai_expand">內容擴展</option>
           <option value="audience_expand">人群擴展</option>
         </select>
+        <select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(parseInt(e.target.value));
+            setCurrentPage(1);
+          }}
+          className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+        >
+          <option value={50}>每頁 50 筆</option>
+          <option value={100}>每頁 100 筆</option>
+          <option value={200}>每頁 200 筆</option>
+        </select>
+        <span className="text-xs text-gray-400 ml-auto">
+          共 {totalCount} 筆
+        </span>
       </div>
 
       {/* 表格 */}
@@ -345,6 +384,7 @@ export default function ViralVideosPage() {
                   className="w-4 h-4 rounded"
                 />
               </th>
+              <th className="w-12 p-3 text-center text-gray-400">#</th>
               <th className="p-3 text-left">平台</th>
               <th className="p-3 text-left">來源</th>
               <th className="p-3 text-left">標題</th>
@@ -372,7 +412,7 @@ export default function ViralVideosPage() {
           <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-gray-400">
+                <td colSpan={10} className="p-8 text-center text-gray-400">
                   <Loader2
                     size={20}
                     className="inline animate-spin mr-2"
@@ -382,12 +422,12 @@ export default function ViralVideosPage() {
               </tr>
             ) : videos.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-gray-400">
+                <td colSpan={10} className="p-8 text-center text-gray-400">
                   尚無爆款資料，請先執行掃描
                 </td>
               </tr>
             ) : (
-              videos.map((v) => (
+              videos.map((v, idx) => (
                 <>
                   <tr
                     key={v.id}
@@ -400,6 +440,9 @@ export default function ViralVideosPage() {
                         onChange={() => toggleSelect(v.id)}
                         className="w-4 h-4 rounded"
                       />
+                    </td>
+                    <td className="p-3 text-center text-xs text-gray-400">
+                      {(currentPage - 1) * pageSize + idx + 1}
                     </td>
                     <td className="p-3">
                       <span title={platformLabel(v.platform)}>
@@ -474,7 +517,7 @@ export default function ViralVideosPage() {
                   </tr>
                   {expandedId === v.id && (
                     <tr key={`${v.id}-detail`}>
-                      <td colSpan={9} className="p-4 bg-blue-50">
+                      <td colSpan={10} className="p-4 bg-blue-50">
                         <div className="flex gap-4">
                           {v.thumbnail_url && (
                             <img
@@ -549,6 +592,70 @@ export default function ViralVideosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* 分頁器 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-sm text-gray-500">
+            第 {currentPage} / {totalPages} 頁（共 {totalCount} 筆）
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              首頁
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              上一頁
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let page: number;
+              if (totalPages <= 5) {
+                page = i + 1;
+              } else if (currentPage <= 3) {
+                page = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                page = totalPages - 4 + i;
+              } else {
+                page = currentPage - 2 + i;
+              }
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1.5 text-sm rounded-lg ${
+                    currentPage === page
+                      ? "bg-primary text-white"
+                      : "border border-border hover:bg-gray-50"
+                  }`}
+                >
+                  {page}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              下一頁
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              末頁
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 底部操作列 */}
       {selected.size > 0 && (

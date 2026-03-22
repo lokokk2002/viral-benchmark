@@ -425,6 +425,7 @@ const ACCOUNT_FN: Record<
 interface ThresholdConfig {
   min_likes: number;
   min_shares: number;
+  min_comments: number;
   max_days_old: number;
 }
 
@@ -441,6 +442,7 @@ function filterByThreshold(
     const effectiveMinLikes = Math.floor(th.min_likes * likesMultiplier);
     if (v.likes < effectiveMinLikes) return false;
     if (th.min_shares > 0 && v.shares < th.min_shares) return false;
+    if (th.min_comments > 0 && v.comments < th.min_comments) return false;
 
     if (v.published_at) {
       const daysOld =
@@ -504,6 +506,7 @@ export async function POST(request: NextRequest) {
       thresholdMap[th.platform] = {
         min_likes: th.min_likes,
         min_shares: th.min_shares,
+        min_comments: th.min_comments || 0,
         max_days_old: th.max_days_old,
       };
     }

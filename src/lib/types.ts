@@ -51,6 +51,7 @@ export interface Threshold {
   platform: Platform;
   min_likes: number;
   min_shares: number;
+  min_comments: number;
   max_days_old: number;
   updated_at: string;
 }

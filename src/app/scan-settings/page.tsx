@@ -497,7 +497,7 @@ export default function ScanSettingsPage() {
                   {platformIcon(th.platform)}{" "}
                   {platformLabel(th.platform)}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs text-gray-400">最低點讚</label>
                     <input
@@ -522,6 +522,21 @@ export default function ScanSettingsPage() {
                         updateThreshold(
                           th.id,
                           "min_shares",
+                          parseInt(e.target.value) || 0
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">最低評論</label>
+                    <input
+                      type="number"
+                      defaultValue={th.min_comments}
+                      onBlur={(e) =>
+                        updateThreshold(
+                          th.id,
+                          "min_comments",
                           parseInt(e.target.value) || 0
                         )
                       }
