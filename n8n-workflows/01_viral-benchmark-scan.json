@@ -1,0 +1,129 @@
+{
+  "name": "viral-benchmark-scan",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "viral-benchmark-scan",
+        "responseMode": "responseNode"
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 300],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 22 * * 0" }]
+        }
+      },
+      "name": "Cron - 每週日 22:00",
+      "type": "n8n-nodes-base.cron",
+      "position": [250, 150],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "viral_benchmark",
+        "table": "projects",
+        "filterType": "string",
+        "filterString": "is_active=eq.true"
+      },
+      "name": "Step1 - 讀取專案設定",
+      "type": "n8n-nodes-base.supabase",
+      "position": [450, 225],
+      "typeVersion": 1,
+      "notes": "讀取 projects + keywords + tracked_accounts + thresholds"
+    },
+    {
+      "parameters": {},
+      "name": "Step2 - 關鍵字搜尋（TikHub）",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [650, 150],
+      "typeVersion": 3,
+      "notes": "每組 active 關鍵字 × 每個平台，呼叫 TikHub API\n抖音: douyin_app_v3_fetch_general_search_result\n小紅書: xiaohongshu_app_search_notes\nTikTok: tiktok_app_v3_fetch_general_search_result"
+    },
+    {
+      "parameters": {},
+      "name": "Step3 - 帳號監控（TikHub）",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [650, 300],
+      "typeVersion": 3,
+      "notes": "每個 active 帳號抓最新 5 支影片"
+    },
+    {
+      "parameters": {},
+      "name": "Step4 - 合併去重",
+      "type": "n8n-nodes-base.code",
+      "position": [850, 225],
+      "typeVersion": 1,
+      "notes": "用 (platform, video_id) 去重，比對 Supabase 已存在記錄"
+    },
+    {
+      "parameters": {},
+      "name": "Step5 - 門檻過濾",
+      "type": "n8n-nodes-base.code",
+      "position": [1050, 225],
+      "typeVersion": 1,
+      "notes": "根據 thresholds 表過濾，不符合門檻的丟棄"
+    },
+    {
+      "parameters": {},
+      "name": "Step6 - 數量檢查 + 補量",
+      "type": "n8n-nodes-base.if",
+      "position": [1250, 225],
+      "typeVersion": 1,
+      "notes": "如果過濾後數量 < weekly_kpi，進入補量機制\nLayer 1: Claude API 擴展關鍵字（內容）\nLayer 2: audience_tracks 擴展（人群）\nLayer 3: 加大帳號抓取深度\nLayer 4: Slack 警告"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "viral_benchmark",
+        "table": "viral_videos"
+      },
+      "name": "Step7 - 寫入 Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1450, 225],
+      "typeVersion": 1,
+      "notes": "新爆款寫入 viral_videos，標記 source_type 和 scan_batch_id"
+    },
+    {
+      "parameters": {
+        "channel": "#爆款對標",
+        "text": "本次掃描摘要 + Top 10 預覽"
+      },
+      "name": "Step8 - 推送 Slack",
+      "type": "n8n-nodes-base.slack",
+      "position": [1650, 225],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "viral_benchmark",
+        "table": "scan_logs"
+      },
+      "name": "Step9 - 寫入 scan_logs",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1850, 225],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Step1 - 讀取專案設定", "type": "main", "index": 0 }]] },
+    "Cron - 每週日 22:00": { "main": [[{ "node": "Step1 - 讀取專案設定", "type": "main", "index": 0 }]] },
+    "Step1 - 讀取專案設定": { "main": [[{ "node": "Step2 - 關鍵字搜尋（TikHub）", "type": "main", "index": 0 }, { "node": "Step3 - 帳號監控（TikHub）", "type": "main", "index": 0 }]] },
+    "Step2 - 關鍵字搜尋（TikHub）": { "main": [[{ "node": "Step4 - 合併去重", "type": "main", "index": 0 }]] },
+    "Step3 - 帳號監控（TikHub）": { "main": [[{ "node": "Step4 - 合併去重", "type": "main", "index": 0 }]] },
+    "Step4 - 合併去重": { "main": [[{ "node": "Step5 - 門檻過濾", "type": "main", "index": 0 }]] },
+    "Step5 - 門檻過濾": { "main": [[{ "node": "Step6 - 數量檢查 + 補量", "type": "main", "index": 0 }]] },
+    "Step6 - 數量檢查 + 補量": { "main": [[{ "node": "Step7 - 寫入 Supabase", "type": "main", "index": 0 }]] },
+    "Step7 - 寫入 Supabase": { "main": [[{ "node": "Step8 - 推送 Slack", "type": "main", "index": 0 }]] },
+    "Step8 - 推送 Slack": { "main": [[{ "node": "Step9 - 寫入 scan_logs", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

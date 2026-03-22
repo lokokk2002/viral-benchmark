@@ -1,0 +1,89 @@
+{
+  "name": "viral-benchmark-shoot-plan",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "viral-benchmark-shoot-plan",
+        "responseMode": "responseNode"
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 225],
+      "typeVersion": 1,
+      "notes": "前端按鈕「生成拍攝計畫」觸發"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "viral_benchmark",
+        "table": "shoot_queue"
+      },
+      "name": "Step1 - 讀取已完成腳本",
+      "type": "n8n-nodes-base.supabase",
+      "position": [450, 225],
+      "typeVersion": 1,
+      "notes": "讀取該週所有 status = completed 的 shoot_queue 記錄及其腳本"
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "body": {
+          "model": "claude-sonnet-4-20250514",
+          "max_tokens": 4096,
+          "messages": [
+            {
+              "role": "user",
+              "content": "以下是本週所有影片腳本，請彙整為拍攝計畫，包含：\n1. 拍攝地點清單\n2. 每支影片的服裝需求\n3. 攜帶設備總表\n4. 建議拍攝順序（同地點的排在一起拍）\n\n請以 JSON 格式輸出，結構為：\n{locations: [{name, videos}], costumes: [{video_title, items}], equipment: [string], shoot_order: [{order, video_title, location}]}\n\n腳本資料：\n{{ $json.scripts }}"
+            }
+          ]
+        }
+      },
+      "name": "Step2 - Claude API 彙整計畫",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [650, 225],
+      "typeVersion": 3,
+      "notes": "呼叫 Claude API (Sonnet)，傳入所有腳本"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "viral_benchmark",
+        "table": "shoot_plans"
+      },
+      "name": "Step3 - 寫入 shoot_plans",
+      "type": "n8n-nodes-base.supabase",
+      "position": [850, 225],
+      "typeVersion": 1,
+      "notes": "結構化內容寫入 plan_content（jsonb）"
+    },
+    {
+      "parameters": {},
+      "name": "Step4 - 生成 PDF + 上傳 Storage",
+      "type": "n8n-nodes-base.code",
+      "position": [1050, 225],
+      "typeVersion": 1,
+      "notes": "生成 PDF，上傳到 Supabase Storage，URL 寫入 pdf_url"
+    },
+    {
+      "parameters": {
+        "channel": "#爆款對標",
+        "text": "本週拍攝計畫已生成"
+      },
+      "name": "Step5 - 推送 Slack",
+      "type": "n8n-nodes-base.slack",
+      "position": [1250, 225],
+      "typeVersion": 1,
+      "notes": "推送 Slack 通知，附 PDF 下載連結"
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Step1 - 讀取已完成腳本", "type": "main", "index": 0 }]] },
+    "Step1 - 讀取已完成腳本": { "main": [[{ "node": "Step2 - Claude API 彙整計畫", "type": "main", "index": 0 }]] },
+    "Step2 - Claude API 彙整計畫": { "main": [[{ "node": "Step3 - 寫入 shoot_plans", "type": "main", "index": 0 }]] },
+    "Step3 - 寫入 shoot_plans": { "main": [[{ "node": "Step4 - 生成 PDF + 上傳 Storage", "type": "main", "index": 0 }]] },
+    "Step4 - 生成 PDF + 上傳 Storage": { "main": [[{ "node": "Step5 - 推送 Slack", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

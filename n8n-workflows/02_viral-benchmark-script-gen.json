@@ -1,0 +1,90 @@
+{
+  "name": "viral-benchmark-script-gen",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.type }}", "value2": "INSERT" }]
+        }
+      },
+      "name": "Supabase Webhook - shoot_queue 新增",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 225],
+      "typeVersion": 1,
+      "notes": "觸發條件：shoot_queue 表新增一筆（status = pending）"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "viral_benchmark",
+        "table": "shoot_queue"
+      },
+      "name": "Step1 - 讀取 shoot_queue + viral_videos",
+      "type": "n8n-nodes-base.supabase",
+      "position": [450, 225],
+      "typeVersion": 1,
+      "notes": "取得關聯的 viral_videos 資料（含 video_url）"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "viral_benchmark",
+        "table": "shoot_queue"
+      },
+      "name": "更新 status = generating",
+      "type": "n8n-nodes-base.supabase",
+      "position": [650, 225],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
+        "method": "POST",
+        "body": {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": "觀看完整影片，輸出繁體中文腳本，格式為 JSON array，每個元素包含 timecode（時間碼）、scene（畫面描述）、dialogue（台詞/旁白）。影片 URL: {{ $json.video_url }}"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "Step2 - 呼叫 Gemini 2.5 Pro",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [850, 225],
+      "typeVersion": 3,
+      "notes": "傳入影片 URL，輸出結構化腳本"
+    },
+    {
+      "parameters": {},
+      "name": "Step3 - 解析 Gemini 回傳",
+      "type": "n8n-nodes-base.code",
+      "position": [1050, 225],
+      "typeVersion": 1,
+      "notes": "將 Gemini 回傳的結構化腳本寫入 script_timecodes（jsonb），原始文本寫入 script_raw"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "viral_benchmark",
+        "table": "shoot_queue"
+      },
+      "name": "Step4 - 更新 status = completed",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1250, 225],
+      "typeVersion": 1,
+      "notes": "status = completed，記錄 script_generated_at。失敗則 status = failed"
+    }
+  ],
+  "connections": {
+    "Supabase Webhook - shoot_queue 新增": { "main": [[{ "node": "Step1 - 讀取 shoot_queue + viral_videos", "type": "main", "index": 0 }]] },
+    "Step1 - 讀取 shoot_queue + viral_videos": { "main": [[{ "node": "更新 status = generating", "type": "main", "index": 0 }]] },
+    "更新 status = generating": { "main": [[{ "node": "Step2 - 呼叫 Gemini 2.5 Pro", "type": "main", "index": 0 }]] },
+    "Step2 - 呼叫 Gemini 2.5 Pro": { "main": [[{ "node": "Step3 - 解析 Gemini 回傳", "type": "main", "index": 0 }]] },
+    "Step3 - 解析 Gemini 回傳": { "main": [[{ "node": "Step4 - 更新 status = completed", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

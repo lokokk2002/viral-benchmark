@@ -1,0 +1,100 @@
+{
+  "name": "viral-benchmark-keyword-suggest",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "viral-benchmark-keyword-suggest",
+        "responseMode": "lastNode"
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 225],
+      "typeVersion": 1,
+      "notes": "前端 5 個方向按鈕分別觸發"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            { "value1": "={{ $json.suggest_type }}", "value2": "content" },
+            { "value1": "={{ $json.suggest_type }}", "value2": "account" },
+            { "value1": "={{ $json.suggest_type }}", "value2": "instagram" },
+            { "value1": "={{ $json.suggest_type }}", "value2": "trending" },
+            { "value1": "={{ $json.suggest_type }}", "value2": "audience" }
+          ]
+        }
+      },
+      "name": "Switch - suggest_type 分流",
+      "type": "n8n-nodes-base.switch",
+      "position": [450, 225],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "name": "content - 從爆款反推",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 50],
+      "typeVersion": 1,
+      "notes": "分析 viral_videos 近期資料的標題和 hashtag，找出高頻但尚未追蹤的詞"
+    },
+    {
+      "parameters": {},
+      "name": "account - 對標帳號趨勢",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 150],
+      "typeVersion": 1,
+      "notes": "分析 tracked_accounts 近期影片的主題趨勢變化"
+    },
+    {
+      "parameters": {},
+      "name": "instagram - 自家 IG 數據",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 250],
+      "typeVersion": 1,
+      "notes": "讀取 Supabase 中現有的 IG insights 資料，分析高互動內容的關鍵字"
+    },
+    {
+      "parameters": {},
+      "name": "trending - 熱搜榜",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 350],
+      "typeVersion": 3,
+      "notes": "呼叫 TikHub 抖音熱搜 API (douyin_app_v3_fetch_hot_search_list)，過濾品牌相關熱搜詞"
+    },
+    {
+      "parameters": {},
+      "name": "audience - 人群擴展",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 450],
+      "typeVersion": 1,
+      "notes": "根據選擇的人群和賽道，從 audience_tracks.suggested_keywords 生成建議"
+    },
+    {
+      "parameters": {},
+      "name": "格式化回傳",
+      "type": "n8n-nodes-base.code",
+      "position": [950, 225],
+      "typeVersion": 1,
+      "notes": "統一格式：{suggestions: [{keyword, source, occurrences}]}"
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Switch - suggest_type 分流", "type": "main", "index": 0 }]] },
+    "Switch - suggest_type 分流": {
+      "main": [
+        [{ "node": "content - 從爆款反推", "type": "main", "index": 0 }],
+        [{ "node": "account - 對標帳號趨勢", "type": "main", "index": 0 }],
+        [{ "node": "instagram - 自家 IG 數據", "type": "main", "index": 0 }],
+        [{ "node": "trending - 熱搜榜", "type": "main", "index": 0 }],
+        [{ "node": "audience - 人群擴展", "type": "main", "index": 0 }]
+      ]
+    },
+    "content - 從爆款反推": { "main": [[{ "node": "格式化回傳", "type": "main", "index": 0 }]] },
+    "account - 對標帳號趨勢": { "main": [[{ "node": "格式化回傳", "type": "main", "index": 0 }]] },
+    "instagram - 自家 IG 數據": { "main": [[{ "node": "格式化回傳", "type": "main", "index": 0 }]] },
+    "trending - 熱搜榜": { "main": [[{ "node": "格式化回傳", "type": "main", "index": 0 }]] },
+    "audience - 人群擴展": { "main": [[{ "node": "格式化回傳", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
