@@ -34,7 +34,7 @@ const ALL_PLATFORMS: { value: Platform; label: string }[] = [
   { value: "tiktok", label: "TikTok" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { projects, current, setCurrent, addProject, updateProject, loading } = useProject();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -309,6 +309,7 @@ export default function Sidebar() {
                       setDropdownOpen(false);
                       resetForm();
                       cancelEdit();
+                      onNavigate?.();
                     }}
                     className="flex-1 text-left truncate"
                   >
@@ -431,6 +432,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${
                 active
                   ? "bg-sidebar-active text-white font-medium"

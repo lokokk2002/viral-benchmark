@@ -289,10 +289,10 @@ export default function ViralVideosPage() {
     ) : null;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1">爆款對標表</h1>
+          <h1 className="text-xl sm:text-2xl font-bold mb-1">爆款對標表</h1>
           <p className="text-gray-500 text-sm">
             瀏覽本週掃到的爆款，篩選、排序、勾選加入拍攝表
           </p>
@@ -322,14 +322,14 @@ export default function ViralVideosPage() {
       </div>
 
       {/* 篩選器 */}
-      <div className="flex gap-3 mb-4 items-center">
+      <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 items-center">
         <select
           value={filterPlatform}
           onChange={(e) => {
             setFilterPlatform(e.target.value as Platform | "all");
             setCurrentPage(1);
           }}
-          className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+          className="flex-1 min-w-[120px] sm:flex-none px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
         >
           <option value="all">全部平台</option>
           {current.platforms.map((p) => (
@@ -344,7 +344,7 @@ export default function ViralVideosPage() {
             setFilterSource(e.target.value as SourceType | "all");
             setCurrentPage(1);
           }}
-          className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+          className="flex-1 min-w-[120px] sm:flex-none px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
         >
           <option value="all">全部來源</option>
           <option value="keyword">核心</option>
@@ -358,20 +358,20 @@ export default function ViralVideosPage() {
             setPageSize(parseInt(e.target.value));
             setCurrentPage(1);
           }}
-          className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+          className="flex-1 min-w-[100px] sm:flex-none px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
         >
           <option value={50}>每頁 50 筆</option>
           <option value={100}>每頁 100 筆</option>
           <option value={200}>每頁 200 筆</option>
         </select>
-        <span className="text-xs text-gray-400 ml-auto">
+        <span className="text-xs text-gray-400 w-full sm:w-auto sm:ml-auto">
           共 {totalCount} 筆
         </span>
       </div>
 
       {/* 表格 */}
-      <div className="border border-border rounded-xl bg-card-bg overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-border rounded-xl bg-card-bg overflow-x-auto">
+        <table className="w-full text-sm min-w-[800px]">
           <thead className="bg-gray-50 border-b border-border">
             <tr>
               <th className="w-10 p-3">
@@ -595,22 +595,22 @@ export default function ViralVideosPage() {
 
       {/* 分頁器 */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-3 mt-4">
           <span className="text-sm text-gray-500">
             第 {currentPage} / {totalPages} 頁（共 {totalCount} 筆）
           </span>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap justify-center gap-1">
             <button
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="hidden sm:inline-block px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               首頁
             </button>
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               上一頁
             </button>
@@ -642,14 +642,14 @@ export default function ViralVideosPage() {
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               下一頁
             </button>
             <button
               onClick={() => setCurrentPage(totalPages)}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="hidden sm:inline-block px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               末頁
             </button>
@@ -659,7 +659,7 @@ export default function ViralVideosPage() {
 
       {/* 底部操作列 */}
       {selected.size > 0 && (
-        <div className="fixed bottom-0 left-60 right-0 bg-white border-t border-border p-4 flex items-center justify-between shadow-lg">
+        <div className="fixed bottom-0 left-0 md:left-60 right-0 bg-white border-t border-border p-3 md:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-30">
           <span className="text-sm text-gray-600">
             已選 <strong>{selected.size}</strong> 支
           </span>

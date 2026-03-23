@@ -148,10 +148,10 @@ export default function ShootQueuePage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1">本週拍攝表</h1>
+          <h1 className="text-xl sm:text-2xl font-bold mb-1">本週拍攝表</h1>
           <p className="text-gray-500 text-sm">
             {currentWeek} — 共 {items.length} 支，
             {completedCount} 支腳本完成
@@ -159,7 +159,7 @@ export default function ShootQueuePage() {
             {failedCount > 0 && `，${failedCount} 支失敗`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {canGenerateScripts && (
             <button
               onClick={handleGenerateAllScripts}
@@ -303,8 +303,8 @@ export default function ShootQueuePage() {
                     item.status === "completed" &&
                     item.script_timecodes && (
                       <div className="px-4 pb-4">
-                        <div className="bg-gray-50 rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
+                        <div className="bg-gray-50 rounded-lg overflow-x-auto">
+                          <table className="w-full text-sm min-w-[500px]">
                             <thead className="bg-gray-100">
                               <tr>
                                 <th className="px-3 py-2 text-left w-24">

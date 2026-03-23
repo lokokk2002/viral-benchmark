@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Users,
   BarChart3,
-  Instagram,
   ChevronRight,
   Plus,
   Zap,
@@ -24,7 +23,6 @@ import { Platform } from "@/lib/types";
 type SuggestType =
   | "content"
   | "account"
-  | "instagram"
   | "trending"
   | "audience"
   | "discover_accounts";
@@ -62,12 +60,6 @@ const DIRECTIONS: {
     label: "對標帳號推薦",
     icon: UserPlus,
     desc: "從爆款中發現高頻優質帳號",
-  },
-  {
-    type: "instagram",
-    label: "自家 IG 數據",
-    icon: Instagram,
-    desc: "分析高互動內容的關鍵字",
   },
   {
     type: "trending",
@@ -290,14 +282,14 @@ export default function KeywordsPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">AI 智能建議</h1>
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">AI 智能建議</h1>
       <p className="text-gray-500 text-sm mb-6">
-        從 6 個方向獲得關鍵字和帳號建議，點選加入掃描清單
+        從 5 個方向獲得關鍵字和帳號建議，點選加入掃描清單
       </p>
 
       {/* 5 個方向按鈕 */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 mb-6">
         {DIRECTIONS.map((d) => (
           <button
             key={d.type}
@@ -320,9 +312,9 @@ export default function KeywordsPage() {
       {/* 人群擴展二級選單 */}
       {showAudiencePanel && (
         <div className="mb-6 border border-border rounded-xl p-4 bg-card-bg">
-          <div className="flex gap-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
             {/* 人群列表 */}
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <div className="text-xs text-gray-400 mb-2 font-medium">
                 人群
               </div>
@@ -346,7 +338,7 @@ export default function KeywordsPage() {
             </div>
 
             {/* 賽道列表 */}
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <div className="text-xs text-gray-400 mb-2 font-medium">
                 賽道
               </div>
@@ -537,16 +529,16 @@ export default function KeywordsPage() {
 
       {/* 底部操作列 */}
       {selected.size > 0 && (
-        <div className="fixed bottom-0 left-60 right-0 bg-white border-t border-border p-4 flex items-center justify-between shadow-lg">
+        <div className="fixed bottom-0 left-0 md:left-60 right-0 bg-white border-t border-border p-3 md:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-30">
           <span className="text-sm text-gray-600">
             <Check size={16} className="inline mr-1" />
             已選 <strong>{selected.size}</strong> 個關鍵字
           </span>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={() => handleAdd(false)}
               disabled={adding}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-blue-50 transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-primary text-primary text-xs sm:text-sm hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               <Plus size={16} />
               加入關鍵字清單
@@ -554,7 +546,7 @@ export default function KeywordsPage() {
             <button
               onClick={() => handleAdd(true)}
               disabled={adding}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-primary text-white text-xs sm:text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
             >
               <Zap size={16} />
               加入並立即掃描

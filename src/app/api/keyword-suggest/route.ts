@@ -132,14 +132,7 @@ async function suggestFromAccounts(projectId: string): Promise<Suggestion[]> {
     }));
 }
 
-// ③ 自家 IG 數據（目前無 IG 資料，回傳提示）
-async function suggestFromInstagram(): Promise<Suggestion[]> {
-  return [
-    { keyword: "（IG 數據尚未整合，待 Phase 2 串接）", source: "IG 數據", occurrences: 0 },
-  ];
-}
-
-// ④ 熱搜榜：呼叫 TikHub 抖音熱搜
+// ③ 熱搜榜：呼叫 TikHub 抖音熱搜
 async function suggestFromTrending(projectId: string): Promise<Suggestion[]> {
   const { data: project } = await supabase
     .from("vb_projects")
@@ -201,7 +194,7 @@ async function suggestFromTrending(projectId: string): Promise<Suggestion[]> {
   return suggestions;
 }
 
-// ⑤ 人群擴展：從 audience_tracks.suggested_keywords 生成
+// ④ 人群擴展：從 audience_tracks.suggested_keywords 生成
 async function suggestFromAudience(
   projectId: string,
   audienceGroupId?: string,
@@ -293,9 +286,6 @@ export async function POST(request: NextRequest) {
       break;
     case "account":
       suggestions = await suggestFromAccounts(project_id);
-      break;
-    case "instagram":
-      suggestions = await suggestFromInstagram();
       break;
     case "trending":
       suggestions = await suggestFromTrending(project_id);

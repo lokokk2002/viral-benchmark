@@ -87,8 +87,8 @@ export default function ShootPlanPage() {
 
   if (!plan) {
     return (
-      <div className="p-6 max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">拍攝計畫</h1>
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+        <h1 className="text-xl sm:text-2xl font-bold mb-1">拍攝計畫</h1>
         <p className="text-gray-500 text-sm mb-6">{currentWeek}</p>
         <div className="border border-border rounded-xl bg-card-bg p-8 text-center text-gray-400">
           <FileText size={40} className="inline mb-3 opacity-40" />
@@ -104,10 +104,10 @@ export default function ShootPlanPage() {
   const content = plan.plan_content as ShootPlanContent | null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1">拍攝計畫</h1>
+          <h1 className="text-xl sm:text-2xl font-bold mb-1">拍攝計畫</h1>
           <p className="text-gray-500 text-sm">
             {currentWeek}
             {plan.status === "confirmed" && (
@@ -117,7 +117,7 @@ export default function ShootPlanPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {plan.pdf_url && (
             <a
               href={plan.pdf_url}
@@ -149,7 +149,7 @@ export default function ShootPlanPage() {
       </div>
 
       {content ? (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* 拍攝地點清單 */}
           <section className="border border-border rounded-xl bg-card-bg">
             <div className="p-4 border-b border-border flex items-center gap-2">

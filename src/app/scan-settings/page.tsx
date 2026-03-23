@@ -320,8 +320,8 @@ export default function ScanSettingsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">掃描設定</h1>
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">掃描設定</h1>
       <p className="text-gray-500 text-sm mb-6">
         管理關鍵字、對標帳號、爆款門檻、週目標 KPI、人群與賽道
       </p>
@@ -407,13 +407,13 @@ export default function ScanSettingsPage() {
           <span className="text-xs text-gray-400">{accounts.length} 個</span>
         </div>
 
-        <div className="p-4 border-b border-border flex gap-2">
+        <div className="p-4 border-b border-border flex flex-wrap gap-2">
           <select
             value={newAccountPlatform}
             onChange={(e) =>
               setNewAccountPlatform(e.target.value as Platform)
             }
-            className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+            className="w-full sm:w-auto px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
           >
             {current.platforms.map((p) => (
               <option key={p} value={p}>
@@ -426,18 +426,18 @@ export default function ScanSettingsPage() {
             value={newAccountName}
             onChange={(e) => setNewAccountName(e.target.value)}
             placeholder="帳號名稱..."
-            className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+            className="flex-1 min-w-[150px] px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
           />
           <input
             type="text"
             value={newAccountUrl}
             onChange={(e) => setNewAccountUrl(e.target.value)}
             placeholder="帳號連結（選填）"
-            className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+            className="flex-1 min-w-[150px] px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
           />
           <button
             onClick={addAccount}
-            className="flex items-center gap-1 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-1 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors"
           >
             <Plus size={16} /> 新增
           </button>
@@ -485,7 +485,7 @@ export default function ScanSettingsPage() {
       </section>
 
       {/* 區塊 C — 爆款門檻 + 區塊 D — 週目標 KPI */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="border border-border rounded-xl bg-card-bg">
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold">爆款門檻</h2>
@@ -497,7 +497,7 @@ export default function ScanSettingsPage() {
                   {platformIcon(th.platform)}{" "}
                   {platformLabel(th.platform)}
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs text-gray-400">最低點讚</label>
                     <input
@@ -617,7 +617,7 @@ export default function ScanSettingsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 divide-x divide-border min-h-[320px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-y md:divide-y-0 divide-border min-h-[240px] md:min-h-[320px]">
           {/* 左欄：人群列表 */}
           <div>
             {/* 新增人群 */}
