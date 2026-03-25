@@ -42,14 +42,27 @@ interface ShootPlanContent {
 
 function parsePlanContent(raw: string): ShootPlanContent | null {
   try {
-    // 嘗試提取 JSON
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    // 清理 markdown code block 包裝
+    let cleaned = raw;
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1].trim();
+    }
+
+    // 嘗試提取 JSON object
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      // 驗證必要欄位
-      if (parsed.locations && parsed.equipment && parsed.shoot_order) {
+      // 只要有 locations 或 shoot_order 就視為有效
+      if (parsed.locations || parsed.shoot_order) {
         return {
-          locations: Array.isArray(parsed.locations) ? parsed.locations : [],
+          locations: Array.isArray(parsed.locations)
+            ? parsed.locations.map((loc: any) =>
+                typeof loc === "string"
+                  ? { name: loc, videos: [] }
+                  : { name: loc.name || "", videos: loc.videos || [] }
+              )
+            : [],
           costumes: Array.isArray(parsed.costumes) ? parsed.costumes : [],
           equipment: Array.isArray(parsed.equipment) ? parsed.equipment : [],
           shoot_order: Array.isArray(parsed.shoot_order)
@@ -161,8 +174,8 @@ ${videoSummaries}
 2. costumes：每支影片需要的服裝/造型
 3. equipment：所有影片拍攝需要的共用設備清單
 4. shoot_order：建議拍攝順序，按地點動線最佳化（同地點連拍）
-5. 所有影片標題必須對應實際的影片名稱
-6. 直接輸出 JSON，不要加其他說明文字`;
+5. video_title 請用精簡的中文短標題（10字以內），不要用原始的完整標題
+6. 直接輸出 JSON，不要用 markdown code block 包裝，不要加其他說明文字`;
 
   let planContent: ShootPlanContent | null = null;
   let planRaw: string = "";
