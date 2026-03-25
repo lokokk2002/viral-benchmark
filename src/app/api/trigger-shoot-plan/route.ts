@@ -18,7 +18,7 @@ async function callGemini(prompt: string): Promise<string> {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
         },
       }),
     }
@@ -133,16 +133,16 @@ export async function POST(request: NextRequest) {
   const videoSummaries = queueItems
     .map((item: any, idx: number) => {
       const v = item.viral_video;
+      // 精簡標題：取前 20 字
+      const shortTitle = (v?.title || "無標題").slice(0, 20);
       const timecodes = item.script_timecodes || [];
       const scriptPreview = timecodes
-        .slice(0, 3)
+        .slice(0, 2)
         .map((tc: any) => `  ${tc.timecode}: ${tc.scene}`)
         .join("\n");
 
-      return `### 影片 ${idx + 1}：${v?.title || "（無標題）"}
+      return `### 影片 ${idx + 1}：${shortTitle}
 - 平台：${v?.platform || "未知"}
-- 作者：${v?.author_name || "未知"}
-- 數據：${v?.likes || 0} 讚 / ${v?.plays || 0} 播放
 - 腳本片段：
 ${scriptPreview || "  （無腳本資料）"}`;
     })
