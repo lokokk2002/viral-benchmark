@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const startISO = startDate.toISOString();
   const endISO = endDate.toISOString();
 
-  // 取得當期資料
+  // 取得當期資料（如果表不存在則 graceful fallback）
   const { data: logs, error } = await supabase
     .from("vb_api_usage_logs")
     .select("*")
@@ -33,11 +33,9 @@ export async function GET(request: NextRequest) {
     .lt("created_at", endISO)
     .order("created_at", { ascending: true });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const records = logs || [];
+  // 表不存在時 fallback 為空陣列（不報錯）
+  const tableExists = !error || !error.message?.includes("vb_api_usage_logs");
+  const records = tableExists ? (logs || []) : [];
 
   // 匯總
   const totalCalls = records.reduce((sum, r) => sum + (r.api_calls || 0), 0);
@@ -89,11 +87,13 @@ export async function GET(request: NextRequest) {
     compEndDate = new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
-  const { data: compLogs } = await supabase
-    .from("vb_api_usage_logs")
-    .select("api_calls, cost_usd")
-    .gte("created_at", compStartDate.toISOString())
-    .lt("created_at", compEndDate.toISOString());
+  const { data: compLogs } = tableExists
+    ? await supabase
+        .from("vb_api_usage_logs")
+        .select("api_calls, cost_usd")
+        .gte("created_at", compStartDate.toISOString())
+        .lt("created_at", compEndDate.toISOString())
+    : { data: [] };
 
   const compRecords = compLogs || [];
   const compTotalCalls = compRecords.reduce((sum, r) => sum + (r.api_calls || 0), 0);

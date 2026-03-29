@@ -715,16 +715,20 @@ export async function POST(request: NextRequest) {
       completed_at: new Date().toISOString(),
     });
 
-    // Step 9 — 寫入 api_usage_logs（每個 endpoint 一筆）
+    // Step 9 — 寫入 api_usage_logs（每個 endpoint 一筆，失敗不影響主流程）
     if (scanApiRecords.length > 0) {
-      const usageLogs = scanApiRecords.map((r) => ({
-        source: "scan",
-        project_id,
-        endpoint: r.endpoint,
-        api_calls: r.calls,
-        cost_usd: parseFloat((r.calls * COST_PER_CALL).toFixed(4)),
-      }));
-      await supabase.from("vb_api_usage_logs").insert(usageLogs);
+      try {
+        const usageLogs = scanApiRecords.map((r) => ({
+          source: "scan",
+          project_id,
+          endpoint: r.endpoint,
+          api_calls: r.calls,
+          cost_usd: parseFloat((r.calls * COST_PER_CALL).toFixed(4)),
+        }));
+        await supabase.from("vb_api_usage_logs").insert(usageLogs);
+      } catch {
+        // api_usage_logs 表可能尚未建立，不影響掃描結果
+      }
     }
 
     return NextResponse.json({
