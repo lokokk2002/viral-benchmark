@@ -9,6 +9,28 @@ const TIKHUB_BASE = process.env.TIKHUB_API_BASE_URL || "https://api.tikhub.io";
 const TIKHUB_KEY = process.env.TIKHUB_API_KEY || "";
 
 // =============================================
+// API 呼叫追蹤
+// =============================================
+const COST_PER_CALL = 0.001; // USD per TikHub API call
+
+interface ApiCallRecord {
+  endpoint: string;
+  calls: number;
+}
+
+// 全域掃描計數器（每次掃描重置）
+let scanApiRecords: ApiCallRecord[] = [];
+
+function recordApiCall(endpoint: string) {
+  const existing = scanApiRecords.find((r) => r.endpoint === endpoint);
+  if (existing) {
+    existing.calls += 1;
+  } else {
+    scanApiRecords.push({ endpoint, calls: 1 });
+  }
+}
+
+// =============================================
 // TikHub API 呼叫
 // =============================================
 async function tikhubGet(path: string, params: Record<string, string>) {
@@ -25,6 +47,10 @@ async function tikhubGet(path: string, params: Record<string, string>) {
   if (!res.ok) return null;
   const json = await res.json();
   if (json.code !== 200) return null;
+
+  // 記錄成功的 API 呼叫
+  recordApiCall(path);
+
   return json.data;
 }
 
@@ -472,6 +498,9 @@ export async function POST(request: NextRequest) {
   let totalFiltered = 0;
   const supplementLayers: string[] = [];
 
+  // 重置 API 呼叫記錄
+  scanApiRecords = [];
+
   try {
     // Step 1 — 讀取專案設定
     const [projectRes, keywordsRes, accountsRes, thresholdsRes] =
@@ -667,7 +696,10 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    // Step 8 — 寫入 scan_logs
+    // Step 8 — 計算 API 費用 + 寫入 scan_logs
+    const totalApiCalls = scanApiRecords.reduce((sum, r) => sum + r.calls, 0);
+    const totalCostUsd = parseFloat((totalApiCalls * COST_PER_CALL).toFixed(4));
+
     await supabase.from("vb_scan_logs").insert({
       project_id,
       batch_id: batchId,
@@ -678,9 +710,22 @@ export async function POST(request: NextRequest) {
       supplement_layers: supplementLayers,
       kpi_target: project.weekly_kpi,
       kpi_met: totalFiltered >= project.weekly_kpi,
+      api_cost_usd: totalCostUsd,
       started_at: startedAt,
       completed_at: new Date().toISOString(),
     });
+
+    // Step 9 — 寫入 api_usage_logs（每個 endpoint 一筆）
+    if (scanApiRecords.length > 0) {
+      const usageLogs = scanApiRecords.map((r) => ({
+        source: "scan",
+        project_id,
+        endpoint: r.endpoint,
+        api_calls: r.calls,
+        cost_usd: parseFloat((r.calls * COST_PER_CALL).toFixed(4)),
+      }));
+      await supabase.from("vb_api_usage_logs").insert(usageLogs);
+    }
 
     return NextResponse.json({
       success: true,
@@ -695,6 +740,8 @@ export async function POST(request: NextRequest) {
         keywords_count: keywords.length,
         accounts_count: accounts.length,
         platforms,
+        api_calls: totalApiCalls,
+        api_cost_usd: totalCostUsd,
       },
     });
   } catch (err: any) {

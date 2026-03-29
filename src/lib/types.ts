@@ -159,6 +159,16 @@ export interface ScanLog {
   error_log: string | null;
 }
 
+export interface ApiUsageLog {
+  id: string;
+  source: "scan" | "keyword_suggest";
+  project_id: string;
+  endpoint: string;
+  api_calls: number;
+  cost_usd: number;
+  created_at: string;
+}
+
 // 前端 UI 用
 export interface KeywordSuggestion {
   keyword: string;

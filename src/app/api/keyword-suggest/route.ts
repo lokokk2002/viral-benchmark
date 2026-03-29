@@ -7,6 +7,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const TIKHUB_BASE = process.env.TIKHUB_API_BASE_URL || "https://api.tikhub.io";
 const TIKHUB_KEY = process.env.TIKHUB_API_KEY || "";
+const COST_PER_CALL = 0.001;
 
 async function tikhubGet(path: string, params: Record<string, string>) {
   const url = new URL(`${TIKHUB_BASE}${path}`);
@@ -21,6 +22,20 @@ async function tikhubGet(path: string, params: Record<string, string>) {
   const json = await res.json();
   if (json.code !== 200) return null;
   return json.data;
+}
+
+async function logApiUsage(projectId: string, endpoint: string, calls: number = 1) {
+  try {
+    await supabase.from("vb_api_usage_logs").insert({
+      source: "keyword_suggest",
+      project_id: projectId,
+      endpoint,
+      api_calls: calls,
+      cost_usd: parseFloat((calls * COST_PER_CALL).toFixed(4)),
+    });
+  } catch {
+    // 不影響主流程
+  }
 }
 
 interface Suggestion {
@@ -149,6 +164,7 @@ async function suggestFromTrending(projectId: string): Promise<Suggestion[]> {
       {}
     );
     if (data) {
+      await logApiUsage(projectId, "/api/v1/douyin/web/fetch_hot_search_result");
       const list = data?.data?.word_list || data?.word_list || [];
       for (const item of list.slice(0, 20)) {
         const word = item?.word || item?.query || "";
@@ -169,6 +185,7 @@ async function suggestFromTrending(projectId: string): Promise<Suggestion[]> {
       {}
     );
     if (data) {
+      await logApiUsage(projectId, "/api/v1/tiktok/web/fetch_trending_searchwords");
       const list = data?.data || [];
       for (const item of list.slice(0, 15)) {
         const word = item?.keyword || item?.word || "";

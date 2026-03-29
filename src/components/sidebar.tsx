@@ -17,8 +17,11 @@ import {
   Loader2,
   Pencil,
   Check,
+  BarChart3,
+  LogOut,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/keywords", label: "AI 智能建議", icon: Sparkles },
@@ -26,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/viral-videos", label: "爆款對標表", icon: TrendingUp },
   { href: "/shoot-queue", label: "本週拍攝表", icon: Film },
   { href: "/shoot-plan", label: "拍攝計畫", icon: ClipboardList },
+  { href: "/token-usage", label: "API 用量", icon: BarChart3 },
 ];
 
 const ALL_PLATFORMS: { value: Platform; label: string }[] = [
@@ -36,7 +40,9 @@ const ALL_PLATFORMS: { value: Platform; label: string }[] = [
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
+  const router = useRouter();
   const { projects, current, setCurrent, addProject, updateProject, loading } = useProject();
+  const [loggingOut, setLoggingOut] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -447,8 +453,26 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}
       </nav>
 
       {/* 底部資訊 */}
-      <div className="p-4 border-t border-white/10 text-xs text-white/40">
-        爆款對標系統 v1.0
+      <div className="p-4 border-t border-white/10 flex items-center justify-between">
+        <span className="text-xs text-white/40">爆款對標系統 v1.0</span>
+        <button
+          onClick={async () => {
+            setLoggingOut(true);
+            try {
+              await fetch("/api/auth/logout", { method: "POST" });
+              router.push("/login");
+              router.refresh();
+            } catch {
+              setLoggingOut(false);
+            }
+          }}
+          disabled={loggingOut}
+          className="flex items-center gap-1 text-xs text-white/40 hover:text-white/80 transition-colors disabled:opacity-50"
+          title="登出"
+        >
+          <LogOut size={14} />
+          登出
+        </button>
       </div>
     </aside>
   );
