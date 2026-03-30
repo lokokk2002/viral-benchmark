@@ -122,6 +122,7 @@ export interface ScriptTimecode {
   timecode: string;
   scene: string;
   dialogue: string;
+  note?: string;
 }
 
 export interface ShootPlan {

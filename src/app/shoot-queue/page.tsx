@@ -308,17 +308,20 @@ export default function ShootQueuePage() {
                     item.script_timecodes && (
                       <div className="px-4 pb-4">
                         <div className="bg-gray-50 rounded-lg overflow-x-auto">
-                          <table className="w-full text-sm min-w-[500px]">
+                          <table className="w-full text-sm min-w-[700px]">
                             <thead className="bg-gray-100">
                               <tr>
                                 <th className="px-3 py-2 text-left w-24">
                                   時間碼
                                 </th>
-                                <th className="px-3 py-2 text-left">
+                                <th className="px-3 py-2 text-left w-1/3">
                                   畫面描述
                                 </th>
-                                <th className="px-3 py-2 text-left">
+                                <th className="px-3 py-2 text-left w-1/3">
                                   台詞/旁白
+                                </th>
+                                <th className="px-3 py-2 text-left w-1/4">
+                                  拍攝備註
                                 </th>
                               </tr>
                             </thead>
@@ -326,15 +329,18 @@ export default function ShootQueuePage() {
                               {(
                                 item.script_timecodes as ScriptTimecode[]
                               ).map((tc, i) => (
-                                <tr key={i}>
-                                  <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                                <tr key={i} className="hover:bg-gray-100/50">
+                                  <td className="px-3 py-2 font-mono text-xs text-gray-500 whitespace-nowrap">
                                     {tc.timecode}
                                   </td>
                                   <td className="px-3 py-2">
                                     {tc.scene}
                                   </td>
-                                  <td className="px-3 py-2 text-gray-600">
+                                  <td className="px-3 py-2 text-gray-700 font-medium">
                                     {tc.dialogue || "-"}
+                                  </td>
+                                  <td className="px-3 py-2 text-xs text-gray-400 italic">
+                                    {tc.note || ""}
                                   </td>
                                 </tr>
                               ))}

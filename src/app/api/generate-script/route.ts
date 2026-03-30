@@ -4,7 +4,7 @@ import { getSupabaseServer } from "@/lib/supabase-server";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-async function callGemini(prompt: string): Promise<string> {
+async function callGemini(prompt: string, temperature = 0.5): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     {
@@ -13,8 +13,8 @@ async function callGemini(prompt: string): Promise<string> {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4096,
+          temperature,
+          maxOutputTokens: 8192,
         },
       }),
     }
@@ -31,11 +31,18 @@ async function callGemini(prompt: string): Promise<string> {
   );
 }
 
-function parseTimecodes(raw: string): { timecode: string; scene: string; dialogue: string }[] {
-  const lines = raw.split("\n").filter((l) => l.trim());
-  const results: { timecode: string; scene: string; dialogue: string }[] = [];
+interface TimecodeEntry {
+  timecode: string;
+  scene: string;
+  dialogue: string;
+  note?: string;
+}
 
-  // 嘗試解析 JSON 格式
+function parseTimecodes(raw: string): TimecodeEntry[] {
+  const lines = raw.split("\n").filter((l) => l.trim());
+  const results: TimecodeEntry[] = [];
+
+  // 嘗試解析 JSON 格式（優先）
   try {
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
@@ -45,14 +52,33 @@ function parseTimecodes(raw: string): { timecode: string; scene: string; dialogu
           timecode: item.timecode || item.time || "",
           scene: item.scene || item.visual || item.description || "",
           dialogue: item.dialogue || item.script || item.text || "",
+          note: item.note || item.remark || "",
         }));
       }
     }
   } catch {
-    // fallback to line parsing
+    // JSON 解析失敗，嘗試清理後重試
+    try {
+      // 有時 LLM 會用 markdown code block 包裝
+      const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        const cleaned = codeBlockMatch[1].trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: any) => ({
+            timecode: item.timecode || item.time || "",
+            scene: item.scene || item.visual || item.description || "",
+            dialogue: item.dialogue || item.script || item.text || "",
+            note: item.note || item.remark || "",
+          }));
+        }
+      }
+    } catch {
+      // fallback to line parsing
+    }
   }
 
-  // 解析 markdown 表格或文字格式
+  // Fallback: 解析 markdown 表格或文字格式
   for (const line of lines) {
     // 格式: 00:00-00:03 | 畫面描述 | 台詞
     const pipeMatch = line.match(
@@ -136,32 +162,61 @@ export async function POST(request: NextRequest) {
 
       const video = item.viral_video;
 
-      const prompt = `你是一位專業的短影音導演和編劇。請根據以下爆款影片資訊，生成一個「致敬翻拍」的逐秒腳本。
+      // 組裝影片描述文案（盡量完整）
+      const videoDesc = video.title || "（無描述）";
+      const hashtagStr = (video.hashtags || []).join(" #") || "無";
+      const videoUrl = video.video_url || "";
+
+      const prompt = `你是一位短影音逐字稿還原專家與翻拍腳本編劇。
+
+## 任務
+根據以下爆款影片的「完整文案描述」與相關資訊，執行兩件事：
+
+### 第一步：還原原始影片的逐秒腳本
+仔細閱讀影片的描述文案，分析其中的敘事結構、情緒轉折、節奏安排，推斷原始影片從頭到尾的內容流程。
+你要盡可能忠實還原「原始影片中每一秒實際發生的事」，包括：
+- 開場 hook（前 3 秒如何吸引注意力）
+- 中段的內容推進
+- 結尾的 call to action 或情緒收束
+- 畫面中可能出現的文字、動作、場景切換
+
+### 第二步：改編為「倍速集團」品牌翻拍腳本
+在保持原始影片的「結構骨架」和「爆款節奏」不變的前提下，將內容改編為適合「倍速集團」（健身器材/筋膜放鬆品牌）的翻拍版本。
+
+---
 
 ## 原始爆款影片資訊
-- 標題：${video.title || "（無標題）"}
+- 影片文案：${videoDesc}
 - 平台：${video.platform}
-- 點讚數：${video.likes}
-- 播放數：${video.plays}
-- 分享數：${video.shares}
+- 影片連結：${videoUrl}
+- 點讚：${(video.likes || 0).toLocaleString()}
+- 播放：${(video.plays || 0).toLocaleString()}
+- 分享：${(video.shares || 0).toLocaleString()}
 - 作者：${video.author_name || "未知"}
-- Hashtags：${(video.hashtags || []).join(", ") || "無"}
+- Hashtags：#${hashtagStr}
 
-## 要求
-1. 生成 JSON 格式的逐秒腳本
-2. 每個片段包含：timecode（時間碼，如 "00:00-00:03"）、scene（畫面描述）、dialogue（台詞/旁白）
-3. 總時長控制在 15-60 秒
-4. 保留原始影片的爆款元素（節奏、轉折、情緒點）
-5. 內容改為健身/筋膜放鬆相關主題
-6. 台詞要口語化、有感染力
+---
 
-請直接輸出 JSON 陣列，不要加其他說明文字：
+## 輸出要求
+1. **必須使用繁體中文**
+2. 輸出 JSON 陣列，每個元素包含以下欄位：
+   - \`timecode\`: 時間碼，格式 "00:00-00:03"
+   - \`scene\`: 畫面描述（攝影角度、場景、人物動作、畫面文字）
+   - \`dialogue\`: 口播台詞或旁白（口語化、有感染力的繁體中文）
+   - \`note\`: 拍攝備註（原始影片這段在做什麼、為什麼這樣設計）
+3. 時間碼要連續，從 00:00 開始
+4. 總時長根據原始影片類型合理推估（短影音通常 15-60 秒）
+5. 每 2-5 秒為一個片段
+6. 台詞必須是「可以直接照著唸」的完整口播稿，不是摘要
+7. scene 欄位要具體到拍攝能直接參考的程度（鏡頭遠近、人物動作、場景佈置）
+
+直接輸出 JSON 陣列，不要用 markdown code block，不要加其他說明文字：
 [
-  {"timecode": "00:00-00:03", "scene": "畫面描述", "dialogue": "台詞"},
+  {"timecode": "00:00-00:03", "scene": "畫面描述", "dialogue": "台詞", "note": "備註"},
   ...
 ]`;
 
-      const raw = await callGemini(prompt);
+      const raw = await callGemini(prompt, 0.4);
       const timecodes = parseTimecodes(raw);
 
       if (timecodes.length === 0) {
