@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseServer } from "@/lib/supabase-server";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -89,6 +85,7 @@ function parsePlanContent(raw: string): ShootPlanContent | null {
 // 4. 通知 n8n → Slack
 // =============================================
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseServer();
   const body = await request.json();
   const { project_id, shoot_week } = body;
 

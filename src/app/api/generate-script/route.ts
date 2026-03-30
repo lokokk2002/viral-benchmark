@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseServer } from "@/lib/supabase-server";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -93,6 +89,7 @@ function parseTimecodes(raw: string): { timecode: string; scene: string; dialogu
 // 接收: { queue_item_id } 或 { queue_item_ids: [] } (批次)
 // =============================================
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseServer();
   const body = await request.json();
   const ids: string[] = body.queue_item_ids || (body.queue_item_id ? [body.queue_item_id] : []);
 

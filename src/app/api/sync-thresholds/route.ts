@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseServer } from "@/lib/supabase-server";
 
 // POST /api/sync-thresholds
 // 專案平台更新後，同步建立缺少的門檻
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseServer();
   const { project_id, platforms } = await request.json();
 
   if (!project_id || !platforms?.length) {

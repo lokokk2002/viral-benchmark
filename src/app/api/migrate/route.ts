@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseServer } from "@/lib/supabase-server";
 
 /**
  * POST /api/migrate
@@ -11,6 +7,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * 需要先在 Supabase SQL Editor 建立 helper function（一次性）
  */
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseServer();
   const results: string[] = [];
 
   // 檢查 api_usage_logs 表是否存在
