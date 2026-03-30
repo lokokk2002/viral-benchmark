@@ -719,19 +719,21 @@ export async function POST(request: NextRequest) {
       completed_at: new Date().toISOString(),
     });
 
-    // Step 9 — 寫入 api_usage_logs（每個 endpoint 一筆，失敗不影響主流程）
+    // Step 9 — 寫入 api_usage_logs（每個 endpoint 一筆）
+    let usageLogError: string | null = null;
     if (scanApiRecords.length > 0) {
-      try {
-        const usageLogs = scanApiRecords.map((r) => ({
-          source: "scan",
-          project_id,
-          endpoint: r.endpoint,
-          api_calls: r.calls,
-          cost_usd: parseFloat((r.calls * COST_PER_CALL).toFixed(4)),
-        }));
-        await supabase.from("vb_api_usage_logs").insert(usageLogs);
-      } catch {
-        // api_usage_logs 表可能尚未建立，不影響掃描結果
+      const usageLogs = scanApiRecords.map((r) => ({
+        source: "scan",
+        project_id,
+        endpoint: r.endpoint,
+        api_calls: r.calls,
+        cost_usd: parseFloat((r.calls * COST_PER_CALL).toFixed(4)),
+      }));
+      const { error: insertErr } = await supabase
+        .from("vb_api_usage_logs")
+        .insert(usageLogs);
+      if (insertErr) {
+        usageLogError = insertErr.message;
       }
     }
 
@@ -750,6 +752,7 @@ export async function POST(request: NextRequest) {
         platforms,
         api_calls: totalApiCalls,
         api_cost_usd: totalCostUsd,
+        usage_log_error: usageLogError,
       },
     });
   } catch (err: any) {

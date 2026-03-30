@@ -26,16 +26,15 @@ async function tikhubGet(path: string, params: Record<string, string>) {
 }
 
 async function logApiUsage(projectId: string, endpoint: string, calls: number = 1) {
-  try {
-    await supabase.from("vb_api_usage_logs").insert({
-      source: "keyword_suggest",
-      project_id: projectId,
-      endpoint,
-      api_calls: calls,
-      cost_usd: parseFloat((calls * COST_PER_CALL).toFixed(4)),
-    });
-  } catch {
-    // 不影響主流程
+  const { error } = await supabase.from("vb_api_usage_logs").insert({
+    source: "keyword_suggest",
+    project_id: projectId,
+    endpoint,
+    api_calls: calls,
+    cost_usd: parseFloat((calls * COST_PER_CALL).toFixed(4)),
+  });
+  if (error) {
+    console.error("[keyword-suggest] logApiUsage INSERT failed:", error.message);
   }
 }
 
