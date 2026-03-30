@@ -4,47 +4,54 @@ import { getSupabaseServer } from "@/lib/supabase-server";
 // POST /api/sync-thresholds
 // 專案平台更新後，同步建立缺少的門檻
 export async function POST(request: NextRequest) {
-  const supabase = getSupabaseServer();
-  const { project_id, platforms } = await request.json();
+  try {
+    const supabase = getSupabaseServer();
+    const { project_id, platforms } = await request.json();
 
-  if (!project_id || !platforms?.length) {
-    return NextResponse.json({ error: "project_id and platforms required" }, { status: 400 });
-  }
+    if (!project_id || !platforms?.length) {
+      return NextResponse.json({ error: "project_id and platforms required" }, { status: 400 });
+    }
 
-  // 查現有門檻
-  const { data: existing } = await supabase
-    .from("vb_thresholds")
-    .select("platform")
-    .eq("project_id", project_id);
-
-  const existingSet = new Set((existing || []).map((t: any) => t.platform));
-  const toAdd = platforms.filter((p: string) => !existingSet.has(p));
-
-  if (toAdd.length > 0) {
-    const rows = toAdd.map((platform: string) => ({
-      project_id,
-      platform,
-      min_likes: 10000,
-      min_shares: 0,
-      min_comments: 0,
-      max_days_old: 30,
-    }));
-    await supabase.from("vb_thresholds").insert(rows);
-  }
-
-  // 刪除已移除平台的門檻
-  const toRemove = [...existingSet].filter((p) => !platforms.includes(p));
-  if (toRemove.length > 0) {
-    await supabase
+    // 查現有門檻
+    const { data: existing } = await supabase
       .from("vb_thresholds")
-      .delete()
-      .eq("project_id", project_id)
-      .in("platform", toRemove);
-  }
+      .select("platform")
+      .eq("project_id", project_id);
 
-  return NextResponse.json({
-    success: true,
-    added: toAdd,
-    removed: toRemove,
-  });
+    const existingSet = new Set((existing || []).map((t: any) => t.platform));
+    const toAdd = platforms.filter((p: string) => !existingSet.has(p));
+
+    if (toAdd.length > 0) {
+      const rows = toAdd.map((platform: string) => ({
+        project_id,
+        platform,
+        min_likes: 10000,
+        min_shares: 0,
+        min_comments: 0,
+        max_days_old: 30,
+      }));
+      await supabase.from("vb_thresholds").insert(rows);
+    }
+
+    // 刪除已移除平台的門檻
+    const toRemove = [...existingSet].filter((p) => !platforms.includes(p));
+    if (toRemove.length > 0) {
+      await supabase
+        .from("vb_thresholds")
+        .delete()
+        .eq("project_id", project_id)
+        .in("platform", toRemove);
+    }
+
+    return NextResponse.json({
+      success: true,
+      added: toAdd,
+      removed: toRemove,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Sync thresholds failed" },
+      { status: 500 }
+    );
+  }
 }

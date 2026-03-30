@@ -60,6 +60,10 @@ export default function ScanSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: current.id, type: "audience" }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setAiSuggestions(data.audience ?? []);
     } catch {

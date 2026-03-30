@@ -7,6 +7,7 @@ import { getSupabaseServer } from "@/lib/supabase-server";
  * 需要先在 Supabase SQL Editor 建立 helper function（一次性）
  */
 export async function POST(request: NextRequest) {
+  try {
   const supabase = getSupabaseServer();
   const results: string[] = [];
 
@@ -55,4 +56,10 @@ GRANT SELECT ON viral_benchmark.vb_api_usage_logs TO anon, authenticated;
   }
 
   return NextResponse.json({ results });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Migration check failed" },
+      { status: 500 }
+    );
+  }
 }

@@ -89,6 +89,10 @@ export default function ShootQueuePage() {
           queue_item_ids: toGenerate.map((i) => i.id),
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       alert(
         `腳本生成完成！\n成功：${data.completed} 支\n失敗：${data.failed} 支`

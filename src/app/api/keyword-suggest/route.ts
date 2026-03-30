@@ -285,42 +285,49 @@ async function suggestFromAudience(
 // POST /api/keyword-suggest
 // =============================================
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { project_id, suggest_type, audience_group_id, audience_track_id } =
-    body;
+  try {
+    const body = await request.json();
+    const { project_id, suggest_type, audience_group_id, audience_track_id } =
+      body;
 
-  if (!project_id || !suggest_type) {
-    return NextResponse.json(
-      { error: "project_id and suggest_type required" },
-      { status: 400 }
-    );
-  }
-
-  let suggestions: Suggestion[] = [];
-
-  switch (suggest_type) {
-    case "content":
-      suggestions = await suggestFromContent(project_id);
-      break;
-    case "account":
-      suggestions = await suggestFromAccounts(project_id);
-      break;
-    case "trending":
-      suggestions = await suggestFromTrending(project_id);
-      break;
-    case "audience":
-      suggestions = await suggestFromAudience(
-        project_id,
-        audience_group_id,
-        audience_track_id
-      );
-      break;
-    default:
+    if (!project_id || !suggest_type) {
       return NextResponse.json(
-        { error: `Unknown suggest_type: ${suggest_type}` },
+        { error: "project_id and suggest_type required" },
         { status: 400 }
       );
-  }
+    }
 
-  return NextResponse.json({ suggestions });
+    let suggestions: Suggestion[] = [];
+
+    switch (suggest_type) {
+      case "content":
+        suggestions = await suggestFromContent(project_id);
+        break;
+      case "account":
+        suggestions = await suggestFromAccounts(project_id);
+        break;
+      case "trending":
+        suggestions = await suggestFromTrending(project_id);
+        break;
+      case "audience":
+        suggestions = await suggestFromAudience(
+          project_id,
+          audience_group_id,
+          audience_track_id
+        );
+        break;
+      default:
+        return NextResponse.json(
+          { error: `Unknown suggest_type: ${suggest_type}` },
+          { status: 400 }
+        );
+    }
+
+    return NextResponse.json({ suggestions });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Keyword suggest failed" },
+      { status: 500 }
+    );
+  }
 }

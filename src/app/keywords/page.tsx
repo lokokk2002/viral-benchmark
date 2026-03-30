@@ -129,6 +129,10 @@ export default function KeywordsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ project_id: current.id, type: "accounts" }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
         const data = await res.json();
         setAccountSuggestions(data.accounts ?? []);
       } catch {
@@ -167,11 +171,15 @@ export default function KeywordsPage() {
           suggest_type: type,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setSuggestions(data.suggestions ?? []);
     } catch (err) {
       setSuggestions([
-        { keyword: `載入失敗：${err}`, source: "錯誤" },
+        { keyword: `載入失敗：${err instanceof Error ? err.message : err}`, source: "錯誤" },
       ]);
     }
     setLoading(false);
@@ -202,6 +210,10 @@ export default function KeywordsPage() {
           audience_track_id: track.id,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setSuggestions(data.suggestions ?? []);
     } catch {

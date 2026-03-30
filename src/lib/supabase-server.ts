@@ -6,15 +6,19 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
  */
 let _client: SupabaseClient | null = null;
 
+// Hardcode fallback（和 next.config.ts 的 env 一致）
+const FALLBACK_URL = "https://thpdbrqadcdixtqhvigg.supabase.co";
+const FALLBACK_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
 export function getSupabaseServer(): SupabaseClient {
   if (_client) return _client;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || FALLBACK_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || FALLBACK_KEY;
 
-  if (!url || !key) {
+  if (!key) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"
+      "Missing SUPABASE_SERVICE_ROLE_KEY env var"
     );
   }
 

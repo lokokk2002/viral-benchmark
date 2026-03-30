@@ -89,6 +89,7 @@ function parseTimecodes(raw: string): { timecode: string; scene: string; dialogu
 // 接收: { queue_item_id } 或 { queue_item_ids: [] } (批次)
 // =============================================
 export async function POST(request: NextRequest) {
+  try {
   const supabase = getSupabaseServer();
   const body = await request.json();
   const ids: string[] = body.queue_item_ids || (body.queue_item_id ? [body.queue_item_id] : []);
@@ -224,4 +225,10 @@ export async function POST(request: NextRequest) {
     completed: completedCount,
     failed: failedCount,
   });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Generate script failed" },
+      { status: 500 }
+    );
+  }
 }

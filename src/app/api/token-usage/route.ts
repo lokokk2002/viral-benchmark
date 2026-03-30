@@ -3,6 +3,7 @@ import { getSupabaseServer } from "@/lib/supabase-server";
 
 // GET /api/token-usage?period=this_month|last_month
 export async function GET(request: NextRequest) {
+  try {
   const supabase = getSupabaseServer();
   const period = request.nextUrl.searchParams.get("period") || "this_month";
 
@@ -129,4 +130,10 @@ export async function GET(request: NextRequest) {
     daily,
     endpoints,
   });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Token usage query failed" },
+      { status: 500 }
+    );
+  }
 }

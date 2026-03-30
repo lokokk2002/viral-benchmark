@@ -85,6 +85,7 @@ function parsePlanContent(raw: string): ShootPlanContent | null {
 // 4. 通知 n8n → Slack
 // =============================================
 export async function POST(request: NextRequest) {
+  try {
   const supabase = getSupabaseServer();
   const body = await request.json();
   const { project_id, shoot_week } = body;
@@ -229,4 +230,10 @@ ${videoSummaries}
     video_count: queueItems.length,
     has_structured_content: !!planContent,
   });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Trigger shoot plan failed" },
+      { status: 500 }
+    );
+  }
 }
