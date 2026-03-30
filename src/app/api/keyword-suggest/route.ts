@@ -150,6 +150,14 @@ async function suggestFromAccounts(projectId: string): Promise<Suggestion[]> {
 
 // ③ 熱搜榜：呼叫 TikHub 抖音熱搜
 async function suggestFromTrending(projectId: string): Promise<Suggestion[]> {
+  if (!TIKHUB_KEY) {
+    return [{
+      keyword: "（TIKHUB_API_KEY 未設定，無法取得熱搜資料）",
+      source: "錯誤",
+      occurrences: 0,
+    }];
+  }
+
   const { data: project } = await supabase
     .from("vb_projects")
     .select("platforms")

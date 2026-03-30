@@ -488,6 +488,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "project_id required" }, { status: 400 });
   }
 
+  if (!TIKHUB_KEY) {
+    return NextResponse.json(
+      { error: "TIKHUB_API_KEY 未設定，無法執行掃描。請在 Zeabur 環境變數中加入 TIKHUB_API_KEY。" },
+      { status: 500 }
+    );
+  }
+
   const batchId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
   let totalRaw = 0;
