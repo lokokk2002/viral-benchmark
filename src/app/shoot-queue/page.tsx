@@ -67,13 +67,22 @@ export default function ShootQueuePage() {
     loadData();
   }, [loadData]);
 
+  // 自動輪詢：有 generating 狀態時每 5 秒重新載入
+  const generatingCount = items.filter((i) => i.status === "generating").length;
+  useEffect(() => {
+    if (generatingCount === 0) return;
+    const interval = setInterval(() => loadData(), 5000);
+    return () => clearInterval(interval);
+  }, [generatingCount, loadData]);
+
   const pendingCount = items.filter((i) => i.status === "pending").length;
   const failedCount = items.filter((i) => i.status === "failed").length;
   const completedCount = items.filter((i) => i.status === "completed").length;
   const canGenerateScripts = pendingCount + failedCount > 0;
   const canGeneratePlan = completedCount > 0;
+  const hasGenerating = generatingCount > 0;
 
-  // 批次生成所有待處理的腳本
+  // 批次生成所有待處理的腳本（非同步觸發）
   async function handleGenerateAllScripts() {
     const toGenerate = items.filter(
       (i) => i.status === "pending" || i.status === "failed"
@@ -93,31 +102,33 @@ export default function ShootQueuePage() {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
-      alert(
-        `腳本生成完成！\n成功：${data.completed} 支\n失敗：${data.failed} 支`
-      );
+      // n8n 會在背景處理，前端透過 polling 自動更新
+      await loadData();
     } catch (err: any) {
-      alert(`生成失敗：${err.message}`);
+      alert(`觸發失敗：${err.message}`);
     }
     setGeneratingScripts(false);
-    loadData();
   }
 
-  // 單支生成腳本
+  // 單支生成腳本（非同步觸發）
   async function handleGenerateOne(queueId: string) {
     setGeneratingOne(queueId);
     try {
-      await fetch("/api/generate-script", {
+      const res = await fetch("/api/generate-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ queue_item_id: queueId }),
       });
-    } catch {
-      // ignore
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      // n8n 會在背景處理，前端透過 polling 自動更新
+      await loadData();
+    } catch (err: any) {
+      alert(`觸發失敗：${err.message}`);
     }
     setGeneratingOne(null);
-    loadData();
   }
 
   // 移除項目
@@ -159,6 +170,7 @@ export default function ShootQueuePage() {
           <p className="text-gray-500 text-sm">
             {currentWeek} — 共 {items.length} 支，
             {completedCount} 支腳本完成
+            {generatingCount > 0 && `，${generatingCount} 支生成中`}
             {pendingCount > 0 && `，${pendingCount} 支待生成`}
             {failedCount > 0 && `，${failedCount} 支失敗`}
           </p>
@@ -167,17 +179,19 @@ export default function ShootQueuePage() {
           {canGenerateScripts && (
             <button
               onClick={handleGenerateAllScripts}
-              disabled={generatingScripts}
+              disabled={generatingScripts || hasGenerating}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
             >
-              {generatingScripts ? (
+              {generatingScripts || hasGenerating ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <Sparkles size={16} />
               )}
-              {generatingScripts
-                ? "生成中..."
-                : `生成腳本（${pendingCount + failedCount} 支）`}
+              {hasGenerating
+                ? `生成中（${generatingCount} 支處理中）...`
+                : generatingScripts
+                  ? "觸發中..."
+                  : `生成腳本（${pendingCount + failedCount} 支）`}
             </button>
           )}
           <button
