@@ -220,6 +220,7 @@ ${videoSummaries}
         plan_id: plan?.id,
         video_count: queueItems.length,
         has_structured_content: !!planContent,
+        page_url: "https://viral-benchmark.zeabur.app/shoot-plan",
       }),
     }).catch(() => {});
   }

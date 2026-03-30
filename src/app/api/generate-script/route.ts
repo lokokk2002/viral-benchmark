@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // 讀取所有 queue items + viral_video 資料
     const { data: items, error: fetchErr } = await supabase
       .from("vb_shoot_queue")
-      .select("id, viral_video:vb_viral_videos(platform, video_id, video_url)")
+      .select("id, viral_video:vb_viral_videos(platform, video_id, video_url, title, author_name)")
       .in("id", ids);
 
     if (fetchErr || !items || items.length === 0) {
@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
         platform: item.viral_video?.platform || "",
         video_id: item.viral_video?.video_id || "",
         video_url: item.viral_video?.video_url || "",
+        title: item.viral_video?.title || "",
+        author_name: item.viral_video?.author_name || "",
       })),
     };
 
