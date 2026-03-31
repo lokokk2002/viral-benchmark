@@ -71,14 +71,22 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    // Fire-and-forget 呼叫 n8n webhook
-    fetch(N8N_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(webhookPayload),
-    }).catch((err) => {
+    // 呼叫 n8n webhook（必須 await，否則 serverless 環境會在 return 後立即終止 process）
+    console.log(`[generate-script] 呼叫 n8n webhook: ${N8N_WEBHOOK_URL}, items: ${webhookPayload.items.length}`);
+    try {
+      const n8nRes = await fetch(N8N_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(webhookPayload),
+      });
+      console.log(`[generate-script] n8n 回應: ${n8nRes.status}`);
+      if (!n8nRes.ok) {
+        console.error(`[generate-script] n8n 回應異常: ${n8nRes.status}`);
+      }
+    } catch (err: any) {
       console.error("[generate-script] n8n webhook call failed:", err.message);
-    });
+      // n8n 呼叫失敗不影響回傳，status 已標記為 generating，用戶可手動重試
+    }
 
     return NextResponse.json({
       queued: true,

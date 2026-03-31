@@ -219,21 +219,25 @@ ${videoSummaries}
     );
   }
 
-  // Step 4: 通知 n8n → Slack
+  // Step 4: 通知 n8n → Slack（必須 await，否則 serverless 會在 return 後終止）
   const n8nWebhookUrl = process.env.N8N_WEBHOOK_SHOOT_PLAN;
   if (n8nWebhookUrl) {
-    fetch(n8nWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_id,
-        shoot_week,
-        plan_id: plan?.id,
-        video_count: queueItems.length,
-        has_structured_content: !!planContent,
-        page_url: "https://viral-benchmark.zeabur.app/shoot-plan",
-      }),
-    }).catch(() => {});
+    try {
+      await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id,
+          shoot_week,
+          plan_id: plan?.id,
+          video_count: queueItems.length,
+          has_structured_content: !!planContent,
+          page_url: "https://viral-benchmark.zeabur.app/shoot-plan",
+        }),
+      });
+    } catch (e: any) {
+      console.error("[shoot-plan] Slack 通知失敗:", e.message);
+    }
   }
 
   return NextResponse.json({
