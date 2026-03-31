@@ -136,11 +136,29 @@ export interface ShootPlan {
   created_at: string;
 }
 
+export interface ShootPlanVideo {
+  order: number;
+  short_title: string;
+  original_title: string;
+  location: string;
+  location_detail: string;
+  costumes: string[];
+  props: string[];
+  key_shots: string[];
+  duration_estimate: string;
+  notes: string;
+}
+
 export interface ShootPlanContent {
+  // v2: 以影片為核心
+  videos?: ShootPlanVideo[];
+  total_duration_estimate?: string;
+  general_notes?: string;
+  // v1 相容
   locations: { name: string; videos: string[] }[];
-  costumes: { video_title: string; items: string[] }[];
+  costumes?: { video_title: string; items: string[] }[];
   equipment: string[];
-  shoot_order: { order: number; video_title: string; location: string }[];
+  shoot_order?: { order: number; video_title: string; location: string }[];
 }
 
 export interface ScanLog {

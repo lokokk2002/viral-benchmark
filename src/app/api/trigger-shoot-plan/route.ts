@@ -14,7 +14,7 @@ async function callGemini(prompt: string): Promise<string> {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 16384,
         },
       }),
     }
@@ -29,29 +29,83 @@ async function callGemini(prompt: string): Promise<string> {
   return json.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
+// v2: 新的拍攝計畫結構 — 以每支影片為核心
+interface ShootPlanVideo {
+  order: number;
+  short_title: string;
+  original_title: string;
+  location: string;
+  location_detail: string;
+  costumes: string[];
+  props: string[];
+  key_shots: string[];
+  duration_estimate: string;
+  notes: string;
+}
+
 interface ShootPlanContent {
+  videos: ShootPlanVideo[];
   locations: { name: string; videos: string[] }[];
-  costumes: { video_title: string; items: string[] }[];
   equipment: string[];
-  shoot_order: { order: number; video_title: string; location: string }[];
+  total_duration_estimate: string;
+  general_notes: string;
+  // 保留舊欄位相容
+  costumes?: { video_title: string; items: string[] }[];
+  shoot_order?: { order: number; video_title: string; location: string }[];
 }
 
 function parsePlanContent(raw: string): ShootPlanContent | null {
   try {
-    // 清理 markdown code block 包裝
     let cleaned = raw;
     const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (codeBlockMatch) {
       cleaned = codeBlockMatch[1].trim();
     }
 
-    // 嘗試提取 JSON object
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      // 只要有 locations 或 shoot_order 就視為有效
+      // v2: 有 videos 欄位
+      if (parsed.videos && Array.isArray(parsed.videos)) {
+        return {
+          videos: parsed.videos.map((v: any, i: number) => ({
+            order: v.order ?? i + 1,
+            short_title: v.short_title || v.video_title || "",
+            original_title: v.original_title || "",
+            location: v.location || "",
+            location_detail: v.location_detail || "",
+            costumes: Array.isArray(v.costumes) ? v.costumes : [],
+            props: Array.isArray(v.props) ? v.props : [],
+            key_shots: Array.isArray(v.key_shots) ? v.key_shots : [],
+            duration_estimate: v.duration_estimate || "",
+            notes: v.notes || "",
+          })),
+          locations: Array.isArray(parsed.locations)
+            ? parsed.locations.map((loc: any) =>
+                typeof loc === "string"
+                  ? { name: loc, videos: [] }
+                  : { name: loc.name || "", videos: loc.videos || [] }
+              )
+            : [],
+          equipment: Array.isArray(parsed.equipment) ? parsed.equipment : [],
+          total_duration_estimate: parsed.total_duration_estimate || "",
+          general_notes: parsed.general_notes || "",
+          // 相容舊欄位
+          costumes: parsed.videos.map((v: any) => ({
+            video_title: v.short_title || v.video_title || "",
+            items: Array.isArray(v.costumes) ? v.costumes : [],
+          })),
+          shoot_order: parsed.videos.map((v: any, i: number) => ({
+            order: v.order ?? i + 1,
+            video_title: v.short_title || v.video_title || "",
+            location: v.location || "",
+          })),
+        };
+      }
+      // v1 fallback: 舊格式
       if (parsed.locations || parsed.shoot_order) {
         return {
+          videos: [],
           locations: Array.isArray(parsed.locations)
             ? parsed.locations.map((loc: any) =>
                 typeof loc === "string"
@@ -68,6 +122,8 @@ function parsePlanContent(raw: string): ShootPlanContent | null {
                 location: s.location || "",
               }))
             : [],
+          total_duration_estimate: "",
+          general_notes: "",
         };
       }
     }
@@ -80,7 +136,7 @@ function parsePlanContent(raw: string): ShootPlanContent | null {
 // =============================================
 // POST /api/trigger-shoot-plan
 // 1. 查 vb_shoot_queue 已完成腳本
-// 2. Gemini 彙整拍攝計畫
+// 2. Gemini 彙整拍攝計畫（v2: 以影片為核心）
 // 3. 寫入 vb_shoot_plans
 // 4. 通知 n8n → Slack
 // =============================================
@@ -127,60 +183,73 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Step 2: 組裝 Gemini prompt
+  // Step 2: 組裝 Gemini prompt（v2: 更完整的影片資訊）
   console.log(`[shoot-plan] 開始處理 ${queueItems.length} 支已完成腳本`);
 
   const videoSummaries = queueItems
     .map((item: any, idx: number) => {
       const v = item.viral_video;
-      // 精簡標題：取前 20 字
-      const shortTitle = (v?.title || "無標題").slice(0, 20);
+      const shortTitle = (v?.title || "無標題").slice(0, 40);
       const timecodes = item.script_timecodes || [];
 
       console.log(`[shoot-plan] 影片 ${idx + 1}: ${shortTitle}, timecodes: ${timecodes.length} 段`);
 
-      // 傳入完整腳本（不只前2段），以便 Gemini 有足夠資料
       const scriptContent = timecodes.length > 0
         ? timecodes
-            .map((tc: any) => `  ${tc.timecode}: ${tc.scene}${tc.dialogue ? ` — ${tc.dialogue}` : ""}${tc.note ? ` (${tc.note})` : ""}`)
+            .map((tc: any) => `  ${tc.timecode}: [畫面] ${tc.scene}${tc.dialogue ? ` [台詞] ${tc.dialogue}` : ""}${tc.note ? ` [備註] ${tc.note}` : ""}`)
             .join("\n")
         : "  （無腳本資料）";
 
       return `### 影片 ${idx + 1}：${shortTitle}
 - 平台：${v?.platform || "未知"}
-- 腳本：
+- 作者：${v?.author_name || "未知"}
+- 完整逐字稿：
 ${scriptContent}`;
     })
     .join("\n\n");
 
   const prompt = `你是一位專業的短影音拍攝製片，負責規劃本週的拍攝計畫。
+我們團隊要「翻拍」以下爆款影片，請根據每支影片的逐字稿內容，規劃完整的拍攝計畫。
 
 ## 本週已確認的翻拍腳本（共 ${queueItems.length} 支）
 
 ${videoSummaries}
 
-## 請根據以上影片生成拍攝計畫，以 JSON 格式輸出，包含以下結構：
+## 請以 JSON 格式輸出，結構如下：
 
 {
+  "videos": [
+    {
+      "order": 1,
+      "short_title": "精簡中文標題（10字內）",
+      "original_title": "原始影片完整標題",
+      "location": "建議拍攝場景/地點",
+      "location_detail": "場景佈置細節：需要什麼背景、擺設等",
+      "costumes": ["服裝1", "服裝2"],
+      "props": ["道具1", "道具2"],
+      "key_shots": ["重點鏡頭描述1", "重點鏡頭描述2", "重點鏡頭描述3"],
+      "duration_estimate": "預估拍攝時間",
+      "notes": "拍攝注意事項"
+    }
+  ],
   "locations": [
-    { "name": "地點名稱", "videos": ["影片1標題", "影片2標題"] }
+    { "name": "地點名稱", "videos": ["影片短標題1", "影片短標題2"] }
   ],
-  "costumes": [
-    { "video_title": "影片標題", "items": ["服裝1", "服裝2"] }
-  ],
-  "equipment": ["設備1", "設備2", "設備3"],
-  "shoot_order": [
-    { "order": 1, "video_title": "影片標題", "location": "拍攝地點" }
-  ]
+  "equipment": ["設備1", "設備2"],
+  "total_duration_estimate": "總預估拍攝時間",
+  "general_notes": "整體拍攝注意事項"
 }
 
-## 要求
-1. locations：按場景歸類，同地點的影片合併
-2. costumes：每支影片需要的服裝/造型
-3. equipment：所有影片拍攝需要的共用設備清單
-4. shoot_order：建議拍攝順序，按地點動線最佳化（同地點連拍）
-5. video_title 請用精簡的中文短標題（10字以內），不要用原始的完整標題
-6. 直接輸出 JSON，不要用 markdown code block 包裝，不要加其他說明文字`;
+## 嚴格要求
+1. **videos 是最重要的部分**！每支影片都必須有完整的拍攝指引
+2. **key_shots**：根據逐字稿中的場景描述，提取 3-5 個最重要的鏡頭/畫面，告訴攝影師要怎麼拍
+3. **location_detail**：不只說「客廳」，要說「客廳的瑜伽墊區域，需要乾淨的背景」之類的具體描述
+4. **costumes**：根據逐字稿畫面描述中出現的穿著來分析
+5. **props**：根據逐字稿中出現的道具來列出
+6. **order**：按地點動線最佳化排序（同地點的影片連續拍攝，減少場地轉換）
+7. **original_title**：填入每支影片的原始完整標題
+8. 必須使用繁體中文輸出
+9. 直接輸出 JSON，不要用 markdown code block 包裝`;
 
   let planContent: ShootPlanContent | null = null;
   let planRaw: string = "";
@@ -219,7 +288,7 @@ ${videoSummaries}
     );
   }
 
-  // Step 4: 通知 n8n → Slack（必須 await，否則 serverless 會在 return 後終止）
+  // Step 4: 通知 n8n → Slack
   const n8nWebhookUrl = process.env.N8N_WEBHOOK_SHOOT_PLAN;
   if (n8nWebhookUrl) {
     try {

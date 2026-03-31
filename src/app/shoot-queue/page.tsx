@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useProject } from "@/lib/project-context";
 import { supabase } from "@/lib/supabase";
-import { ShootQueueItem, ScriptTimecode } from "@/lib/types";
+import { ShootQueueItem, ScriptTimecode, ViralVideo } from "@/lib/types";
 import { platformIcon, platformLabel, getShootWeek } from "@/lib/utils";
+import * as XLSX from "xlsx";
 import {
   Film,
   ChevronDown,
@@ -185,50 +186,104 @@ export default function ShootQueuePage() {
     }
   }
 
-  // 下載逐字稿
+  // 下載逐字稿（Excel 格式，含影片資訊）
   function handleDownloadTranscripts() {
     const selectedItems = items.filter((i) => selectedForDownload.has(i.id));
     if (selectedItems.length === 0) return;
 
-    const BOM = "\uFEFF";
-    let md = `${BOM}# 逐字稿合集 — ${currentWeek}\n\n`;
+    const wb = XLSX.utils.book_new();
 
+    // === Sheet 1: 影片總覽 ===
+    const overviewRows = selectedItems.map((item, idx) => {
+      const v = item.viral_video as ViralVideo | undefined;
+      return {
+        "序號": idx + 1,
+        "影片標題": v?.title || "（無標題）",
+        "平台": v ? platformLabel(v.platform) : "未知",
+        "作者": v?.author_name || "-",
+        "作者ID": v?.author_id || "-",
+        "影片連結": v?.video_url || "-",
+        "播放數": v?.plays ?? "-",
+        "按讚數": v?.likes ?? "-",
+        "留言數": v?.comments ?? "-",
+        "分享數": v?.shares ?? "-",
+        "發佈日期": v?.published_at || "-",
+        "腳本段數": (item.script_timecodes as ScriptTimecode[])?.length || 0,
+      };
+    });
+    const wsOverview = XLSX.utils.json_to_sheet(overviewRows);
+    // 設定欄寬
+    wsOverview["!cols"] = [
+      { wch: 5 },   // 序號
+      { wch: 40 },  // 標題
+      { wch: 8 },   // 平台
+      { wch: 15 },  // 作者
+      { wch: 15 },  // 作者ID
+      { wch: 50 },  // 連結
+      { wch: 10 },  // 播放
+      { wch: 10 },  // 按讚
+      { wch: 10 },  // 留言
+      { wch: 10 },  // 分享
+      { wch: 12 },  // 發佈日期
+      { wch: 8 },   // 段數
+    ];
+    XLSX.utils.book_append_sheet(wb, wsOverview, "影片總覽");
+
+    // === Sheet 2: 完整逐字稿 ===
+    const scriptRows: Record<string, string | number>[] = [];
     selectedItems.forEach((item, idx) => {
-      const video = item.viral_video;
-      const title = video?.title || "（無標題）";
-      const platform = video ? platformLabel(video.platform) : "未知平台";
-      const author = video?.author_name || "-";
-      const url = video?.video_url || "";
-
-      md += `---\n\n`;
-      md += `## ${idx + 1}. ${title}（${platform}）\n`;
-      md += `作者：${author}`;
-      if (url) md += ` | 原始連結：${url}`;
-      md += `\n\n`;
-
+      const v = item.viral_video as ViralVideo | undefined;
+      const title = v?.title || "（無標題）";
+      const platform = v ? platformLabel(v.platform) : "未知";
       const timecodes = (item.script_timecodes as ScriptTimecode[]) || [];
+
       if (timecodes.length > 0) {
-        md += `| 時間碼 | 畫面描述 | 台詞/旁白 | 拍攝備註 |\n`;
-        md += `|--------|---------|-----------|----------|\n`;
-        timecodes.forEach((tc) => {
-          const scene = (tc.scene || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
-          const dialogue = (tc.dialogue || "-").replace(/\|/g, "\\|").replace(/\n/g, " ");
-          const note = (tc.note || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
-          md += `| ${tc.timecode} | ${scene} | ${dialogue} | ${note} |\n`;
+        timecodes.forEach((tc, tcIdx) => {
+          scriptRows.push({
+            "影片序號": idx + 1,
+            "影片標題": title,
+            "平台": platform,
+            "作者": v?.author_name || "-",
+            "影片連結": v?.video_url || "-",
+            "段落": tcIdx + 1,
+            "時間碼": tc.timecode,
+            "畫面描述": tc.scene || "",
+            "台詞/旁白": tc.dialogue || "",
+            "拍攝備註": tc.note || "",
+          });
         });
       } else {
-        md += `（無逐字稿資料）\n`;
+        scriptRows.push({
+          "影片序號": idx + 1,
+          "影片標題": title,
+          "平台": platform,
+          "作者": v?.author_name || "-",
+          "影片連結": v?.video_url || "-",
+          "段落": 0,
+          "時間碼": "",
+          "畫面描述": "（無逐字稿資料）",
+          "台詞/旁白": "",
+          "拍攝備註": "",
+        });
       }
-      md += `\n`;
     });
+    const wsScripts = XLSX.utils.json_to_sheet(scriptRows);
+    wsScripts["!cols"] = [
+      { wch: 8 },   // 影片序號
+      { wch: 40 },  // 標題
+      { wch: 8 },   // 平台
+      { wch: 15 },  // 作者
+      { wch: 50 },  // 連結
+      { wch: 5 },   // 段落
+      { wch: 10 },  // 時間碼
+      { wch: 50 },  // 畫面描述
+      { wch: 50 },  // 台詞
+      { wch: 30 },  // 備註
+    ];
+    XLSX.utils.book_append_sheet(wb, wsScripts, "完整逐字稿");
 
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `逐字稿_${currentWeek}_${selectedItems.length}支.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // 下載
+    XLSX.writeFile(wb, `逐字稿_${currentWeek}_${selectedItems.length}支.xlsx`);
   }
 
   const downloadableCount = items.filter(
@@ -490,7 +545,7 @@ export default function ShootQueuePage() {
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors"
           >
             <Download size={16} />
-            下載逐字稿（{selectedForDownload.size} 支）
+            下載 Excel 逐字稿（{selectedForDownload.size} 支）
           </button>
         </div>
       )}
