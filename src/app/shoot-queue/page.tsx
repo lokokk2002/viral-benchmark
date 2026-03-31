@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useProject } from "@/lib/project-context";
 import { supabase } from "@/lib/supabase";
 import { ShootQueueItem, ScriptTimecode } from "@/lib/types";
-import { platformIcon, getShootWeek } from "@/lib/utils";
+import { platformIcon, platformLabel, getShootWeek } from "@/lib/utils";
 import {
   Film,
   ChevronDown,
@@ -17,6 +17,7 @@ import {
   Sparkles,
   RefreshCw,
   Trash2,
+  Download,
 } from "lucide-react";
 
 const STATUS_CONFIG: Record<
@@ -45,6 +46,7 @@ export default function ShootQueuePage() {
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [generatingScripts, setGeneratingScripts] = useState(false);
   const [generatingOne, setGeneratingOne] = useState<string | null>(null);
+  const [selectedForDownload, setSelectedForDownload] = useState<Set<string>>(new Set());
 
   const currentWeek = getShootWeek();
 
@@ -141,7 +143,7 @@ export default function ShootQueuePage() {
     if (!current || !canGeneratePlan) return;
     setGeneratingPlan(true);
     try {
-      await fetch("/api/trigger-shoot-plan", {
+      const res = await fetch("/api/trigger-shoot-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -149,12 +151,89 @@ export default function ShootQueuePage() {
           shoot_week: currentWeek,
         }),
       });
-      alert("拍攝計畫生成已觸發，請稍後至「拍攝計畫」頁查看");
-    } catch {
-      alert("觸發失敗，請確認 n8n 是否已串接");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      alert(
+        `拍攝計畫生成完成！共彙整 ${data.video_count} 支影片\n請到「拍攝計畫」頁查看`
+      );
+    } catch (err: any) {
+      alert(`生成失敗：${err.message}`);
     }
     setGeneratingPlan(false);
   }
+
+  // 逐字稿勾選
+  function toggleDownloadSelect(id: string) {
+    setSelectedForDownload((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllDownload() {
+    const completedItems = items.filter(
+      (i) => i.status === "completed" && i.script_timecodes
+    );
+    if (selectedForDownload.size === completedItems.length) {
+      setSelectedForDownload(new Set());
+    } else {
+      setSelectedForDownload(new Set(completedItems.map((i) => i.id)));
+    }
+  }
+
+  // 下載逐字稿
+  function handleDownloadTranscripts() {
+    const selectedItems = items.filter((i) => selectedForDownload.has(i.id));
+    if (selectedItems.length === 0) return;
+
+    const BOM = "\uFEFF";
+    let md = `${BOM}# 逐字稿合集 — ${currentWeek}\n\n`;
+
+    selectedItems.forEach((item, idx) => {
+      const video = item.viral_video;
+      const title = video?.title || "（無標題）";
+      const platform = video ? platformLabel(video.platform) : "未知平台";
+      const author = video?.author_name || "-";
+      const url = video?.video_url || "";
+
+      md += `---\n\n`;
+      md += `## ${idx + 1}. ${title}（${platform}）\n`;
+      md += `作者：${author}`;
+      if (url) md += ` | 原始連結：${url}`;
+      md += `\n\n`;
+
+      const timecodes = (item.script_timecodes as ScriptTimecode[]) || [];
+      if (timecodes.length > 0) {
+        md += `| 時間碼 | 畫面描述 | 台詞/旁白 | 拍攝備註 |\n`;
+        md += `|--------|---------|-----------|----------|\n`;
+        timecodes.forEach((tc) => {
+          const scene = (tc.scene || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+          const dialogue = (tc.dialogue || "-").replace(/\|/g, "\\|").replace(/\n/g, " ");
+          const note = (tc.note || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+          md += `| ${tc.timecode} | ${scene} | ${dialogue} | ${note} |\n`;
+        });
+      } else {
+        md += `（無逐字稿資料）\n`;
+      }
+      md += `\n`;
+    });
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `逐字稿_${currentWeek}_${selectedItems.length}支.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const downloadableCount = items.filter(
+    (i) => i.status === "completed" && i.script_timecodes
+  ).length;
 
   if (!current) {
     return (
@@ -209,6 +288,24 @@ export default function ShootQueuePage() {
         </div>
       </div>
 
+      {/* 全選下載列 */}
+      {downloadableCount > 0 && (
+        <div className="flex items-center gap-3 mb-2">
+          <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={
+                downloadableCount > 0 &&
+                selectedForDownload.size === downloadableCount
+              }
+              onChange={toggleAllDownload}
+              className="w-4 h-4 rounded"
+            />
+            全選已完成逐字稿（{downloadableCount} 支）
+          </label>
+        </div>
+      )}
+
       {/* 列表 */}
       <div className="border border-border rounded-xl bg-card-bg overflow-hidden">
         {loading ? (
@@ -239,6 +336,18 @@ export default function ShootQueuePage() {
                   <div
                     className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
                   >
+                    {/* 逐字稿下載勾選框 - 只有已完成且有內容的才可勾 */}
+                    {item.status === "completed" && item.script_timecodes ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedForDownload.has(item.id)}
+                        onChange={() => toggleDownloadSelect(item.id)}
+                        className="w-4 h-4 rounded shrink-0"
+                        title="勾選以下載逐字稿"
+                      />
+                    ) : (
+                      <span className="w-4 shrink-0" />
+                    )}
                     <span>
                       {video
                         ? platformIcon(video.platform)
@@ -369,6 +478,22 @@ export default function ShootQueuePage() {
           </div>
         )}
       </div>
+
+      {/* 底部操作列 — 逐字稿下載 */}
+      {selectedForDownload.size > 0 && (
+        <div className="fixed bottom-0 left-0 md:left-60 right-0 bg-white border-t border-border p-3 md:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-30">
+          <span className="text-sm text-gray-600">
+            已選 <strong>{selectedForDownload.size}</strong> 支逐字稿
+          </span>
+          <button
+            onClick={handleDownloadTranscripts}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors"
+          >
+            <Download size={16} />
+            下載逐字稿（{selectedForDownload.size} 支）
+          </button>
+        </div>
+      )}
     </div>
   );
 }

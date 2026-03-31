@@ -22,6 +22,7 @@ import {
   Loader2,
   UserPlus,
   UserCheck,
+  CheckCircle,
 } from "lucide-react";
 
 export default function ViralVideosPage() {
@@ -34,6 +35,7 @@ export default function ViralVideosPage() {
   const [adding, setAdding] = useState(false);
   const [trackedAuthors, setTrackedAuthors] = useState<Set<string>>(new Set());
   const [trackingAuthor, setTrackingAuthor] = useState<string | null>(null);
+  const [queuedVideoIds, setQueuedVideoIds] = useState<Set<string>>(new Set());
 
   // 篩選器
   const [filterPlatform, setFilterPlatform] = useState<Platform | "all">(
@@ -99,6 +101,21 @@ export default function ViralVideosPage() {
           (data || []).map((a: any) => `${a.platform}:${a.account_id}`)
         );
         setTrackedAuthors(set);
+      });
+  }, [current]);
+
+  // 載入本週已在拍攝佇列的影片 ID
+  useEffect(() => {
+    if (!current) return;
+    supabase
+      .from("vb_shoot_queue")
+      .select("viral_video_id")
+      .eq("project_id", current.id)
+      .eq("shoot_week", getShootWeek())
+      .then(({ data }) => {
+        setQueuedVideoIds(
+          new Set((data || []).map((q: any) => q.viral_video_id))
+        );
       });
   }, [current]);
 
@@ -242,7 +259,20 @@ export default function ViralVideosPage() {
     if (!current || selected.size === 0) return;
     setAdding(true);
     const week = getShootWeek();
-    const rows = Array.from(selected).map((vid) => ({
+
+    // 過濾掉已在佇列的影片
+    const newIds = Array.from(selected).filter(
+      (vid) => !queuedVideoIds.has(vid)
+    );
+    const skippedCount = selected.size - newIds.length;
+
+    if (newIds.length === 0) {
+      alert("所選影片皆已在本週拍攝表中，無需重複加入");
+      setAdding(false);
+      return;
+    }
+
+    const rows = newIds.map((vid) => ({
       project_id: current.id,
       viral_video_id: vid,
       status: "pending",
@@ -253,11 +283,18 @@ export default function ViralVideosPage() {
       .insert(rows)
       .select("id");
 
-    const count = rows.length;
+    // 更新已在佇列的 Set
+    setQueuedVideoIds((prev) => {
+      const next = new Set(prev);
+      newIds.forEach((id) => next.add(id));
+      return next;
+    });
+
     setSelected(new Set());
     setAdding(false);
 
     // 自動觸發腳本生成（不需操盤手手動按）
+    const skipMsg = skippedCount > 0 ? `\n（已跳過 ${skippedCount} 支重複影片）` : "";
     if (inserted && inserted.length > 0) {
       const queueIds = inserted.map((r: any) => r.id);
       fetch("/api/generate-script", {
@@ -266,10 +303,10 @@ export default function ViralVideosPage() {
         body: JSON.stringify({ queue_item_ids: queueIds }),
       }).catch(() => {});
       alert(
-        `已將 ${count} 支影片加入本週拍攝表，腳本正在自動生成中...\n請到「本週拍攝表」查看進度`
+        `已將 ${newIds.length} 支影片加入本週拍攝表，腳本正在自動生成中...\n請到「本週拍攝表」查看進度${skipMsg}`
       );
     } else {
-      alert(`已將 ${count} 支影片加入本週拍攝表`);
+      alert(`已將 ${newIds.length} 支影片加入本週拍攝表${skipMsg}`);
     }
   }
 
@@ -459,16 +496,24 @@ export default function ViralVideosPage() {
                       </span>
                     </td>
                     <td className="p-3 max-w-xs">
-                      <button
-                        onClick={() =>
-                          setExpandedId(
-                            expandedId === v.id ? null : v.id
-                          )
-                        }
-                        className="text-left hover:text-primary transition-colors truncate block w-full"
-                      >
-                        {v.title || "（無標題）"}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() =>
+                            setExpandedId(
+                              expandedId === v.id ? null : v.id
+                            )
+                          }
+                          className="text-left hover:text-primary transition-colors truncate"
+                        >
+                          {v.title || "（無標題）"}
+                        </button>
+                        {queuedVideoIds.has(v.id) && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                            <CheckCircle size={10} />
+                            已排入
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       {v.author_id ? (
@@ -662,21 +707,30 @@ export default function ViralVideosPage() {
       )}
 
       {/* 底部操作列 */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-0 left-0 md:left-60 right-0 bg-white border-t border-border p-3 md:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-30">
-          <span className="text-sm text-gray-600">
-            已選 <strong>{selected.size}</strong> 支
-          </span>
-          <button
-            onClick={handleAddToShootQueue}
-            disabled={adding}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
-          >
-            <Plus size={16} />
-            加入本週拍攝表
-          </button>
-        </div>
-      )}
+      {selected.size > 0 && (() => {
+        const newCount = Array.from(selected).filter((id) => !queuedVideoIds.has(id)).length;
+        const dupCount = selected.size - newCount;
+        return (
+          <div className="fixed bottom-0 left-0 md:left-60 right-0 bg-white border-t border-border p-3 md:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-30">
+            <span className="text-sm text-gray-600">
+              已選 <strong>{selected.size}</strong> 支
+              {dupCount > 0 && (
+                <span className="text-orange-500 ml-2">
+                  （其中 {dupCount} 支已在拍攝表，將自動跳過）
+                </span>
+              )}
+            </span>
+            <button
+              onClick={handleAddToShootQueue}
+              disabled={adding || newCount === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              <Plus size={16} />
+              {newCount > 0 ? `加入本週拍攝表（${newCount} 支）` : "全部已在拍攝表"}
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

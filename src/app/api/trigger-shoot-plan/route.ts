@@ -128,21 +128,28 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 2: 組裝 Gemini prompt
+  console.log(`[shoot-plan] 開始處理 ${queueItems.length} 支已完成腳本`);
+
   const videoSummaries = queueItems
     .map((item: any, idx: number) => {
       const v = item.viral_video;
       // 精簡標題：取前 20 字
       const shortTitle = (v?.title || "無標題").slice(0, 20);
       const timecodes = item.script_timecodes || [];
-      const scriptPreview = timecodes
-        .slice(0, 2)
-        .map((tc: any) => `  ${tc.timecode}: ${tc.scene}`)
-        .join("\n");
+
+      console.log(`[shoot-plan] 影片 ${idx + 1}: ${shortTitle}, timecodes: ${timecodes.length} 段`);
+
+      // 傳入完整腳本（不只前2段），以便 Gemini 有足夠資料
+      const scriptContent = timecodes.length > 0
+        ? timecodes
+            .map((tc: any) => `  ${tc.timecode}: ${tc.scene}${tc.dialogue ? ` — ${tc.dialogue}` : ""}${tc.note ? ` (${tc.note})` : ""}`)
+            .join("\n")
+        : "  （無腳本資料）";
 
       return `### 影片 ${idx + 1}：${shortTitle}
 - 平台：${v?.platform || "未知"}
-- 腳本片段：
-${scriptPreview || "  （無腳本資料）"}`;
+- 腳本：
+${scriptContent}`;
     })
     .join("\n\n");
 
@@ -179,9 +186,13 @@ ${videoSummaries}
   let planRaw: string = "";
 
   try {
+    console.log(`[shoot-plan] 呼叫 Gemini，prompt 長度: ${prompt.length} 字`);
     planRaw = await callGemini(prompt);
+    console.log(`[shoot-plan] Gemini 回傳長度: ${planRaw.length} 字`);
     planContent = parsePlanContent(planRaw);
+    console.log(`[shoot-plan] 結構化解析: ${planContent ? "成功" : "失敗（使用 raw fallback）"}`);
   } catch (err: any) {
+    console.error(`[shoot-plan] Gemini 錯誤:`, err.message);
     return NextResponse.json(
       { error: `Gemini 生成失敗：${err.message}` },
       { status: 502 }
